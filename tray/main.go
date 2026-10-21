@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"archive/zip"
@@ -24,7 +24,7 @@ import (
 var assets embed.FS
 
 const (
-	appName      = "TeleDrive Local"
+	appName      = "Easy TeleDrive"
 	buildVersion = "1.0.0"
 	port         = 4100
 	driveLetter  = "Z:"
@@ -248,7 +248,7 @@ func migrateData() {
 			}, "\r\n")+"\r\n"), 0o644)
 		}
 	}
-	// переносим сессию и индексы из прежней установки (чтобы не входить заново)
+	// РїРµСЂРµРЅРѕСЃРёРј СЃРµСЃСЃРёСЋ Рё РёРЅРґРµРєСЃС‹ РёР· РїСЂРµР¶РЅРµР№ СѓСЃС‚Р°РЅРѕРІРєРё (С‡С‚РѕР±С‹ РЅРµ РІС…РѕРґРёС‚СЊ Р·Р°РЅРѕРІРѕ)
 	old := `C:\teledrive-mine\data`
 	for _, name := range []string{"session.txt", "index.json", "tree.json"} {
 		src := filepath.Join(old, name)
@@ -328,7 +328,7 @@ func cleanup() {
 	runHidden("net.exe", "use", driveLetter, "/delete", "/y")
 }
 
-// Запрос к локальному серверу от имени трея (отдельный токен в data/control.token).
+// Р—Р°РїСЂРѕСЃ Рє Р»РѕРєР°Р»СЊРЅРѕРјСѓ СЃРµСЂРІРµСЂСѓ РѕС‚ РёРјРµРЅРё С‚СЂРµСЏ (РѕС‚РґРµР»СЊРЅС‹Р№ С‚РѕРєРµРЅ РІ data/control.token).
 func control(method, path string) (map[string]any, error) {
 	tok, err := os.ReadFile(filepath.Join(dataDir, "control.token"))
 	if err != nil {
@@ -366,16 +366,16 @@ func showMenu(hwnd uintptr) {
 	mounted := isMounted()
 
 	hMenu, _, _ := procCreatePopupMenu.Call()
-	procAppendMenu.Call(hMenu, mfString, idConsole, uintptr(unsafe.Pointer(utf16("Консоль"))))
+	procAppendMenu.Call(hMenu, mfString, idConsole, uintptr(unsafe.Pointer(utf16("РљРѕРЅСЃРѕР»СЊ"))))
 
 	diskFlags := uintptr(mfString)
 	if mounted {
 		diskFlags |= mfChecked
 	}
-	procAppendMenu.Call(hMenu, diskFlags, idDisk, uintptr(unsafe.Pointer(utf16("Диск"))))
+	procAppendMenu.Call(hMenu, diskFlags, idDisk, uintptr(unsafe.Pointer(utf16("Р”РёСЃРє"))))
 
 	procAppendMenu.Call(hMenu, mfSeparator, 0, 0)
-	procAppendMenu.Call(hMenu, mfString, idExit, uintptr(unsafe.Pointer(utf16("Выход"))))
+	procAppendMenu.Call(hMenu, mfString, idExit, uintptr(unsafe.Pointer(utf16("Р’С‹С…РѕРґ"))))
 
 	var pt point
 	procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
@@ -447,7 +447,7 @@ func addTray(hwnd uintptr) {
 	nid.uFlags = nifMessage | nifIcon | nifTip
 	nid.uCallbackMessage = wmTrayMsg
 	nid.hIcon = hIcon
-	tip, _ := syscall.UTF16FromString(appName + " — правый клик: меню")
+	tip, _ := syscall.UTF16FromString(appName + " вЂ” РїСЂР°РІС‹Р№ РєР»РёРє: РјРµРЅСЋ")
 	copy(nid.szTip[:], tip)
 
 	r, _, _ := procShellNotifyIcon.Call(nimAdd, uintptr(unsafe.Pointer(&nid)))
@@ -457,10 +457,10 @@ func addTray(hwnd uintptr) {
 }
 
 func main() {
-	// окно и цикл сообщений должны жить в одном потоке ОС
+	// РѕРєРЅРѕ Рё С†РёРєР» СЃРѕРѕР±С‰РµРЅРёР№ РґРѕР»Р¶РЅС‹ Р¶РёС‚СЊ РІ РѕРґРЅРѕРј РїРѕС‚РѕРєРµ РћРЎ
 	runtime.LockOSThread()
 
-	// второй экземпляр: просто открываем консоль
+	// РІС‚РѕСЂРѕР№ СЌРєР·РµРјРїР»СЏСЂ: РїСЂРѕСЃС‚Рѕ РѕС‚РєСЂС‹РІР°РµРј РєРѕРЅСЃРѕР»СЊ
 	hMutex, _, mutexErr := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(utf16("Global\\TeleDriveLocalTray"))))
 	if hMutex != 0 {
 		if errno, ok := mutexErr.(syscall.Errno); ok && errno == syscall.ERROR_ALREADY_EXISTS {
@@ -480,17 +480,17 @@ func main() {
 	dataDir = filepath.Join(roamingAppData(), "TeleDriveLocal", "data")
 
 	if err := extractRuntime(); err != nil {
-		msgBox("Не удалось распаковать компоненты: " + err.Error())
+		msgBox("РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїР°РєРѕРІР°С‚СЊ РєРѕРјРїРѕРЅРµРЅС‚С‹: " + err.Error())
 		return
 	}
 	migrateData()
 
 	if err := startNode(); err != nil {
-		msgBox("Не удалось запустить сервер: " + err.Error())
+		msgBox("РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РїСѓСЃС‚РёС‚СЊ СЃРµСЂРІРµСЂ: " + err.Error())
 		return
 	}
 	if !waitForPort(90 * time.Second) {
-		msgBox("Сервер не запустился за 90 секунд. Смотрите журнал: " + filepath.Join(dataDir, "app.log"))
+		msgBox("РЎРµСЂРІРµСЂ РЅРµ Р·Р°РїСѓСЃС‚РёР»СЃСЏ Р·Р° 90 СЃРµРєСѓРЅРґ. РЎРјРѕС‚СЂРёС‚Рµ Р¶СѓСЂРЅР°Р»: " + filepath.Join(dataDir, "app.log"))
 		cleanup()
 		return
 	}
@@ -509,7 +509,7 @@ func main() {
 	logf("register class: atom=%d err=%v ; create window: hwnd=%d err=%v", atom, regErr, hwnd, createErr)
 	mainHwnd = hwnd
 	if hwnd == 0 {
-		msgBox("Не удалось создать окно приложения. Смотрите журнал: " + filepath.Join(dataDir, "tray.log"))
+		msgBox("РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РѕРєРЅРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ. РЎРјРѕС‚СЂРёС‚Рµ Р¶СѓСЂРЅР°Р»: " + filepath.Join(dataDir, "tray.log"))
 		cleanup()
 		return
 	}
@@ -552,3 +552,4 @@ func msgBox(text string) {	procMessageBox := user32.NewProc("MessageBoxW")
 	procMessageBox.Call(0, uintptr(unsafe.Pointer(utf16(text))),
 		uintptr(unsafe.Pointer(utf16(appName))), 0x40)
 }
+

@@ -1,8 +1,8 @@
-#requires -Version 5.1
-# Собирает единый EXE: Go-лаунчер + сжатый Node.js + сервер.
-# Требуется: Go 1.21+, Node.js 18+ (для упаковки), Python + Pillow (иконка).
+﻿#requires -Version 5.1
+# РЎРѕР±РёСЂР°РµС‚ РµРґРёРЅС‹Р№ EXE: Go-Р»Р°СѓРЅС‡РµСЂ + СЃР¶Р°С‚С‹Р№ Node.js + СЃРµСЂРІРµСЂ.
+# РўСЂРµР±СѓРµС‚СЃСЏ: Go 1.21+, Node.js 18+ (РґР»СЏ СѓРїР°РєРѕРІРєРё), Python + Pillow (РёРєРѕРЅРєР°).
 param(
-  [string]$NodeExe = ''   # путь к node.exe, по умолчанию берётся из PATH
+  [string]$NodeExe = ''   # РїСѓС‚СЊ Рє node.exe, РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ Р±РµСЂС‘С‚СЃСЏ РёР· PATH
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,11 +59,12 @@ if ($rsrc) {
 Write-Host '5/5 go build'
 Push-Location $Root
 $ErrorActionPreference = 'Continue'
-& go build -trimpath -ldflags '-H windowsgui -s -w' -o (Join-Path $Root 'TeleDrive Local.exe') .
+& go build -trimpath -ldflags '-H windowsgui -s -w' -o (Join-Path $Root 'Easy TeleDrive.exe') .
 $code = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 Pop-Location
 if ($code -ne 0) { throw "go build failed: $code" }
 
-$exe = Join-Path $Root 'TeleDrive Local.exe'
+$exe = Join-Path $Root 'Easy TeleDrive.exe'
 Write-Host ("EXE: {0} ({1:N1} MB)" -f $exe, ((Get-Item $exe).Length / 1MB))
+
