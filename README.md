@@ -76,3 +76,4 @@ HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters
 
 MIT, СЃРј. [LICENSE](LICENSE).
 
+
