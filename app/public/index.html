@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TeleDrive Local — Saved Messages</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">✈</span>
+      <span>TeleDrive <b>Local</b></span>
+    </div>
+    <div class="user" id="userBox" hidden>
+      <span id="userName"></span>
+      <button id="logoutBtn" class="link">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Login -->
+    <section id="loginView" class="card" hidden>
+      <h1>Sign in to Telegram</h1>
+      <p class="muted">Enter your phone number, then the code from Telegram. No API keys required.</p>
+
+      <div id="stepPhone">
+        <label for="phone">Phone number</label>
+        <input id="phone" type="tel" placeholder="+7 999 123-45-67" autocomplete="tel" />
+        <button id="sendCodeBtn" class="primary">Send code</button>
+      </div>
+
+      <div id="stepCode" hidden>
+        <label for="code">Code from Telegram</label>
+        <input id="code" type="text" inputmode="numeric" placeholder="12345" autocomplete="one-time-code" />
+        <p class="hint" id="codeHint"></p>
+        <button id="signInBtn" class="primary">Sign in</button>
+        <button id="backBtn" class="link">Change number</button>
+      </div>
+
+      <div id="stepPassword" hidden>
+        <label for="password">Two-step verification password</label>
+        <input id="password" type="password" autocomplete="current-password" />
+        <p class="hint" id="passwordHint"></p>
+        <button id="passwordBtn" class="primary">Sign in</button>
+      </div>
+
+      <p class="status" id="loginStatus"></p>
+    </section>
+
+    <!-- Files -->
+    <section id="filesView" hidden>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Filter by name…" />
+        <button id="refreshBtn" class="ghost">Refresh</button>
+        <label class="ghost upload">
+          Upload to Saved Messages
+          <input id="uploadInput" type="file" multiple hidden />
+        </label>
+        <button id="downloadBtn" class="primary" disabled>Download selected</button>
+      </div>
+      <p class="status" id="filesStatus"></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" id="checkAll" /></th>
+              <th>Name</th>
+              <th class="col-size">Size</th>
+              <th class="col-date">Date</th>
+              <th class="col-act"></th>
+            </tr>
+          </thead>
+          <tbody id="filesBody"></tbody>
+        </table>
+      </div>
+      <div class="more">
+        <button id="moreBtn" class="ghost" hidden>Load more</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    Local client • data stays on this computer • files are stored in Telegram
+  </footer>
+
+  <script>window.TD_TOKEN = '__TOKEN__';</script>
+  <script src="/app.js"></script>
+</body>
+</html>

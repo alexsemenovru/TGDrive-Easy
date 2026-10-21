@@ -1,0 +1,9 @@
+node_modules/
+data/
+assets/*.gz
+*.exe
+*.syso
+.env
+session.txt
+tray.log
+app.log
