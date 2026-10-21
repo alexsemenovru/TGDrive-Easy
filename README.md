@@ -1,29 +1,31 @@
 # TGDrive-Easy
 
-**Easy TeleDrive** — локальный клиент Telegram, который показывает «Избранное» (Saved Messages) как сетевой диск Windows (`Z:`) и как веб-интерфейс. Один EXE, без установки.
+[English](README.md) | [Русский](README.ru.md)
 
-## Что умеет
+**Easy TeleDrive** is a local Telegram client that shows **Saved Messages** as a Windows network drive (`Z:`) and as a web interface. A single EXE, no installation.
 
-- вход в Telegram по номеру телефона, коду и паролю 2FA (ключи `api_id`/`api_hash` регистрировать не нужно — используются публичные учётные данные веб-клиента);
-- список файлов «Избранного», скачивание, загрузка, переименование, удаление, виртуальные папки;
-- сетевой диск через WebDAV: штатный клиент Windows или `rclone`;
-- режим без кеша: ошибки передачи видны сразу, а не «через минуту»;
-- при сбое фоновой загрузки в папке появляется заметка `<имя>.upload-failed.txt` с причиной;
-- значок в трее с меню: «Консоль», «Диск» (галочка — смонтирован, щелчок монтирует/снимает), «Выход»;
-- автомонтирование диска при запуске и кнопки Mount/Unmount в настройках веб-консоли;
-- трафик Telegram идёт через SOCKS5- или MTProto-прокси; прокси настраивается в веб-консоли до и после входа, ссылку `tg://proxy` можно вставить целиком.
+## What it can do
 
-## Состав
+- Sign in to Telegram with a phone number, code and 2FA password — no need to register `api_id`/`api_hash` (the public web-client credentials are used).
+- List files from Saved Messages, download, upload, rename, delete; virtual folders.
+- Network drive over WebDAV: the built-in Windows client or `rclone`.
+- No-cache mode: transfer errors are visible immediately instead of "a minute later".
+- If a background upload fails, a `<name>.upload-failed.txt` note with the reason appears in the same folder.
+- Tray icon menu: **Console**, **Drive** (check mark when mounted, click to mount/unmount), **Exit**.
+- Mount the drive at startup (configurable) and Mount/Unmount buttons in the web console.
+- Telegram traffic goes through SOCKS5 or MTProto proxy; the proxy is configured in the web console before and after sign-in, and a `tg://proxy` link can be pasted as-is.
+
+## Layout
 
 ```
-app/    Node.js-сервер: WebDAV, Telegram (GramJS), веб-интерфейс
-tray/   Go-лаунчер: значок в трее, меню, встроенный Node.js
-tests/  проверки API и настроек
+app/    Node.js server: WebDAV, Telegram (GramJS), web interface
+tray/   Go launcher: tray icon, menu, embedded Node.js
+tests/  API and settings checks
 ```
 
-## Сборка
+## Build
 
-Сервер:
+Server:
 
 ```powershell
 cd app
@@ -31,20 +33,20 @@ npm install
 node server.js
 ```
 
-Интерфейс: http://127.0.0.1:4100
+Web interface: http://127.0.0.1:4100
 
-EXE (нужны Go 1.21+, Node.js 18 и Python с Pillow):
+EXE (requires Go 1.21+, Node.js 18 and Python with Pillow):
 
 ```powershell
 cd tray
 .\build.ps1
 ```
 
-Скрипт сам скачает зависимости сервера, упакует `node.exe` и `app.zip`, соберёт иконку и EXE. Если `rsrc` не установлен (`go install github.com/akavel/rsrc@latest`), EXE получит стандартную иконку.
+The script installs server dependencies, packs `node.exe` and `app.zip`, renders the icon and builds the EXE. If `rsrc` is missing (`go install github.com/akavel/rsrc@latest`), the EXE gets a default icon.
 
-## Настройки
+## Settings
 
-`%APPDATA%\TeleDriveLocal\data\.env` (или `data/.env` при запуске из исходников):
+`%APPDATA%\TeleDriveLocal\data\.env` (or `data/.env` when running from source):
 
 ```
 PORT=4100
@@ -55,11 +57,11 @@ DAV_PASS=teledrive
 MOUNT_MODE=webdav
 ```
 
-Автомонтирование и параметры прокси хранятся в `settings.json` рядом и меняются из веб-консоли (кнопка «⚙ Settings»).
+Auto-mount and proxy parameters are stored in `settings.json` next to it and are changed from the web console (**⚙ Settings**).
 
-## Windows и WebDAV
+## Windows and WebDAV
 
-Для штатного WebDAV-клиента один раз нужны (от администратора):
+The built-in WebDAV client needs a one-time registry change (administrator):
 
 ```
 HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters
@@ -67,19 +69,19 @@ HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters
   FileSizeLimitInBytes = 4294967295
 ```
 
-## Ограничения
+## Limitations
 
-- Telegram: 2 ГБ на файл, 4 ГБ с Premium; клиент Windows не передаёт файлы больше 4 ГБ.
-- «Избранное» не поддерживает папки — они виртуальные и хранятся в `data/tree.json`.
-- `data/session.txt` даёт полный доступ к аккаунту: не публикуйте его.
-- Используются публичные учётные данные веб-клиента Telegram. Это не запрещено технически, но формально сторонний клиент: для постоянной работы надёжнее указать свой `api_id`/`api_hash` в `.env`.
+- Telegram: 2 GB per file, 4 GB with Premium; the Windows WebDAV client does not transfer files larger than 4 GB.
+- Saved Messages has no folders — folders are virtual and stored in `data/tree.json`.
+- `data/session.txt` grants full access to the account: never publish it.
+- Public Telegram web-client credentials are used. This is not technically prohibited, but it is a third-party client; for permanent use it is safer to specify your own `api_id`/`api_hash` in `.env`.
 
-## Вдохновение и происхождение
+## Inspiration and origin
 
-Проект вдохновлён [mgilangjanuar/teledrive](https://github.com/mgilangjanuar/teledrive) — открытым клиентом Telegram Drive. Код здесь написан заново, но идея, структура API и подход к работе с «Избранным» выросли из знакомства с этим проектом.
+The project is inspired by [mgilangjanuar/teledrive](https://github.com/mgilangjanuar/teledrive), an open-source Telegram Drive client. The code here was written from scratch, but the idea, the API layout and the approach to Saved Messages grew out of getting to know that project.
 
-Проект целиком и полностью исполнен с помощью **вайб-кодинга** (vibe coding): человек ставил задачи и проверял результат, код писал ИИ-агент.
+The project was built entirely with **vibe coding**: a human set the tasks and checked the result, an AI agent wrote the code.
 
-## Лицензия
+## License
 
-MIT, см. [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
