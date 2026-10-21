@@ -281,7 +281,7 @@ func migrateData() {
 			}, "\r\n")+"\r\n"), 0o644)
 		}
 	}
-	// РїРµСЂРµРЅРѕСЃРёРј СЃРµСЃСЃРёСЋ Рё РёРЅРґРµРєСЃС‹ РёР· РїСЂРµР¶РЅРµР№ СѓСЃС‚Р°РЅРѕРІРєРё (С‡С‚РѕР±С‹ РЅРµ РІС…РѕРґРёС‚СЊ Р·Р°РЅРѕРІРѕ)
+	// copy the session and indexes from the previous installation
 	old := `C:\teledrive-mine\data`
 	for _, name := range []string{"session.txt", "index.json", "tree.json"} {
 		src := filepath.Join(old, name)
@@ -362,7 +362,7 @@ func cleanup() {
 	runHidden("net.exe", "use", driveLetter, "/delete", "/y")
 }
 
-// Р—Р°РїСЂРѕСЃ Рє Р»РѕРєР°Р»СЊРЅРѕРјСѓ СЃРµСЂРІРµСЂСѓ РѕС‚ РёРјРµРЅРё С‚СЂРµСЏ (РѕС‚РґРµР»СЊРЅС‹Р№ С‚РѕРєРµРЅ РІ data/control.token).
+	// request to the local server on behalf of the tray
 func control(method, path string) (map[string]any, error) {
 	tok, err := os.ReadFile(filepath.Join(dataDir, "control.token"))
 	if err != nil {
@@ -400,16 +400,16 @@ func showMenu(hwnd uintptr) {
 	mounted := isMounted()
 
 	hMenu, _, _ := procCreatePopupMenu.Call()
-	procAppendMenu.Call(hMenu, mfString, idConsole, uintptr(unsafe.Pointer(utf16("РљРѕРЅСЃРѕР»СЊ"))))
+	procAppendMenu.Call(hMenu, mfString, idConsole, uintptr(unsafe.Pointer(utf16("Console"))))
 
 	diskFlags := uintptr(mfString)
 	if mounted {
 		diskFlags |= mfChecked
 	}
-	procAppendMenu.Call(hMenu, diskFlags, idDisk, uintptr(unsafe.Pointer(utf16("Р”РёСЃРє"))))
+	procAppendMenu.Call(hMenu, diskFlags, idDisk, uintptr(unsafe.Pointer(utf16("Drive"))))
 
 	procAppendMenu.Call(hMenu, mfSeparator, 0, 0)
-	procAppendMenu.Call(hMenu, mfString, idExit, uintptr(unsafe.Pointer(utf16("Р’С‹С…РѕРґ"))))
+	procAppendMenu.Call(hMenu, mfString, idExit, uintptr(unsafe.Pointer(utf16("Exit"))))
 
 	var pt point
 	procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
@@ -491,10 +491,10 @@ func addTray(hwnd uintptr) {
 }
 
 func main() {
-	// РѕРєРЅРѕ Рё С†РёРєР» СЃРѕРѕР±С‰РµРЅРёР№ РґРѕР»Р¶РЅС‹ Р¶РёС‚СЊ РІ РѕРґРЅРѕРј РїРѕС‚РѕРєРµ РћРЎ
+	// the window and the message loop must live on one OS thread
 	runtime.LockOSThread()
 
-	// РІС‚РѕСЂРѕР№ СЌРєР·РµРјРїР»СЏСЂ: РїСЂРѕСЃС‚Рѕ РѕС‚РєСЂС‹РІР°РµРј РєРѕРЅСЃРѕР»СЊ
+	// second instance: just open the console
 	hMutex, _, mutexErr := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(utf16("Global\\TGDriveEasyTray"))))
 	if hMutex != 0 {
 		if errno, ok := mutexErr.(syscall.Errno); ok && errno == syscall.ERROR_ALREADY_EXISTS {
@@ -514,17 +514,17 @@ func main() {
 	dataDir = filepath.Join(roamingAppData(), "TGDrive-Easy", "data")
 
 	if err := extractRuntime(); err != nil {
-		msgBox("РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїР°РєРѕРІР°С‚СЊ РєРѕРјРїРѕРЅРµРЅС‚С‹: " + err.Error())
+		msgBox("Could not unpack the application files: " + err.Error())
 		return
 	}
 	migrateData()
 
 	if err := startNode(); err != nil {
-		msgBox("РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РїСѓСЃС‚РёС‚СЊ СЃРµСЂРІРµСЂ: " + err.Error())
+		msgBox("Could not start the server: " + err.Error())
 		return
 	}
 	if !waitForPort(90 * time.Second) {
-		msgBox("РЎРµСЂРІРµСЂ РЅРµ Р·Р°РїСѓСЃС‚РёР»СЃСЏ Р·Р° 90 СЃРµРєСѓРЅРґ. РЎРјРѕС‚СЂРёС‚Рµ Р¶СѓСЂРЅР°Р»: " + filepath.Join(dataDir, "app.log"))
+		msgBox("The server did not start within 90 seconds. See the log: " + filepath.Join(dataDir, "app.log"))
 		cleanup()
 		return
 	}
@@ -543,7 +543,7 @@ func main() {
 	logf("register class: atom=%d err=%v ; create window: hwnd=%d err=%v", atom, regErr, hwnd, createErr)
 	mainHwnd = hwnd
 	if hwnd == 0 {
-		msgBox("РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РѕРєРЅРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ. РЎРјРѕС‚СЂРёС‚Рµ Р¶СѓСЂРЅР°Р»: " + filepath.Join(dataDir, "tray.log"))
+		msgBox("Could not create the application window. See the log: " + filepath.Join(dataDir, "tray.log"))
 		cleanup()
 		return
 	}
