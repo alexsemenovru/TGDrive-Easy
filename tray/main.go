@@ -24,7 +24,7 @@ import (
 var assets embed.FS
 
 const (
-	appName      = "Easy TeleDrive"
+	appName      = "TGDrive-Easy"
 	buildVersion = "1.0.0"
 	port         = 4100
 	driveLetter  = "Z:"
@@ -230,7 +230,40 @@ func extractRuntime() error {
 	return os.WriteFile(stamp, []byte(buildVersion), 0o644)
 }
 
+// Перенос данных из прежней версии приложения, чтобы не входить заново.
+func copyLegacyData() {
+	if _, err := os.Stat(dataDir); err == nil {
+		return
+	}
+	old := filepath.Join(roamingAppData(), "TeleDriveLocal", "data")
+	if _, err := os.Stat(old); err != nil {
+		return
+	}
+	copyTree(old, dataDir)
+	logf("legacy data copied from %s", old)
+}
+
+func copyTree(src, dst string) {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return
+	}
+	os.MkdirAll(dst, 0o755)
+	for _, e := range entries {
+		s := filepath.Join(src, e.Name())
+		d := filepath.Join(dst, e.Name())
+		if e.IsDir() {
+			copyTree(s, d)
+			continue
+		}
+		if b, err := os.ReadFile(s); err == nil {
+			os.WriteFile(d, b, 0o644)
+		}
+	}
+}
+
 func migrateData() {
+	copyLegacyData()
 	os.MkdirAll(dataDir, 0o755)
 	envPath := filepath.Join(dataDir, ".env")
 	if _, err := os.Stat(envPath); os.IsNotExist(err) {
@@ -447,7 +480,7 @@ func addTray(hwnd uintptr) {
 	nid.uFlags = nifMessage | nifIcon | nifTip
 	nid.uCallbackMessage = wmTrayMsg
 	nid.hIcon = hIcon
-	tip, _ := syscall.UTF16FromString(appName + " вЂ” РїСЂР°РІС‹Р№ РєР»РёРє: РјРµРЅСЋ")
+	tip, _ := syscall.UTF16FromString(appName + " - right click for menu")
 	copy(nid.szTip[:], tip)
 
 	r, _, _ := procShellNotifyIcon.Call(nimAdd, uintptr(unsafe.Pointer(&nid)))
@@ -461,11 +494,11 @@ func main() {
 	runtime.LockOSThread()
 
 	// РІС‚РѕСЂРѕР№ СЌРєР·РµРјРїР»СЏСЂ: РїСЂРѕСЃС‚Рѕ РѕС‚РєСЂС‹РІР°РµРј РєРѕРЅСЃРѕР»СЊ
-	hMutex, _, mutexErr := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(utf16("Global\\TeleDriveLocalTray"))))
+	hMutex, _, mutexErr := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(utf16("Global\\TGDriveEasyTray"))))
 	if hMutex != 0 {
 		if errno, ok := mutexErr.(syscall.Errno); ok && errno == syscall.ERROR_ALREADY_EXISTS {
 			if len(os.Args) > 1 && os.Args[1] == "--exit" {
-				ev, _, _ := procOpenEvent.Call(0x0002, 0, uintptr(unsafe.Pointer(utf16("Local\\TeleDriveLocalExit"))))
+				ev, _, _ := procOpenEvent.Call(0x0002, 0, uintptr(unsafe.Pointer(utf16("Local\\TGDriveEasyExit"))))
 				if ev != 0 {
 					procSetEvent.Call(ev)
 				}
@@ -476,8 +509,8 @@ func main() {
 		}
 	}
 
-	runtimeDir = filepath.Join(localAppData(), "TeleDriveLocal", "runtime")
-	dataDir = filepath.Join(roamingAppData(), "TeleDriveLocal", "data")
+	runtimeDir = filepath.Join(localAppData(), "TGDrive-Easy", "runtime")
+	dataDir = filepath.Join(roamingAppData(), "TGDrive-Easy", "data")
 
 	if err := extractRuntime(); err != nil {
 		msgBox("РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїР°РєРѕРІР°С‚СЊ РєРѕРјРїРѕРЅРµРЅС‚С‹: " + err.Error())
@@ -515,7 +548,7 @@ func main() {
 	}
 	addTray(hwnd)
 
-	exitEvent, _, evErr := procCreateEvent.Call(0, 0, 0, uintptr(unsafe.Pointer(utf16("Local\\TeleDriveLocalExit"))))
+	exitEvent, _, evErr := procCreateEvent.Call(0, 0, 0, uintptr(unsafe.Pointer(utf16("Local\\TGDriveEasyExit"))))
 	logf("exit event: handle=%d err=%v", exitEvent, evErr)
 	if exitEvent != 0 {
 		go func() {
@@ -552,4 +585,5 @@ func msgBox(text string) {	procMessageBox := user32.NewProc("MessageBoxW")
 	procMessageBox.Call(0, uintptr(unsafe.Pointer(utf16(text))),
 		uintptr(unsafe.Pointer(utf16(appName))), 0x40)
 }
+
 

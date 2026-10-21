@@ -59,12 +59,12 @@ if ($rsrc) {
 Write-Host '5/5 go build'
 Push-Location $Root
 $ErrorActionPreference = 'Continue'
-& go build -trimpath -ldflags '-H windowsgui -s -w' -o (Join-Path $Root 'Easy TeleDrive.exe') .
+& go build -trimpath -ldflags '-H windowsgui -s -w' -o (Join-Path $Root 'TGDrive-easy.exe') .
 $code = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 Pop-Location
 if ($code -ne 0) { throw "go build failed: $code" }
 
-$exe = Join-Path $Root 'Easy TeleDrive.exe'
+$exe = Join-Path $Root 'TGDrive-easy.exe'
 Write-Host ("EXE: {0} ({1:N1} MB)" -f $exe, ((Get-Item $exe).Length / 1MB))
 
