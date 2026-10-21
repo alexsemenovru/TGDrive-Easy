@@ -2,7 +2,7 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
-**Easy TeleDrive** is a local Telegram client that shows **Saved Messages** as a Windows network drive (`Z:`) and as a web interface. A single EXE, no installation.
+**TGDrive-Easy** is a local Telegram client that shows **Saved Messages** as a Windows network drive (`Z:`) and as a web interface. A single EXE, no installation.
 
 ## What it can do
 
