@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"archive/zip"
@@ -302,9 +302,10 @@ func startNode() error {
 		return fmt.Errorf("node.exe not found: %w", err)
 	}
 	logFile, _ := os.Create(filepath.Join(dataDir, "app.log"))
+	exePath, _ := os.Executable()
 	cmd := exec.Command(nodeExe, serverJs)
 	cmd.Dir = runtimeDir
-	cmd.Env = append(os.Environ(), "TD_DATA_DIR="+dataDir)
+	cmd.Env = append(os.Environ(), "TD_DATA_DIR="+dataDir, "TD_APP_EXE="+exePath)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}

@@ -66,6 +66,7 @@ function loadSettings() {
     s = {};
   }
   if (typeof s.autoMount !== 'boolean') s.autoMount = true;
+  if (typeof s.autoStart !== 'boolean') s.autoStart = false;
   if (!s.proxy || typeof s.proxy !== 'object') s.proxy = proxyFromEnv();
   return s;
 }
@@ -78,6 +79,22 @@ function saveSettings() {
   } catch (e) {
     console.error('settings save failed:', e.message);
   }
+}
+
+// Автозапуск при входе в Windows: ключ Run в HKCU, без прав администратора.
+const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+const AUTOSTART_NAME = 'TGDrive-Easy';
+
+function applyAutoStart(enabled) {
+  const exe = process.env.TD_APP_EXE;
+  if (!exe) {
+    return { ok: false, error: 'executable path is unknown (running from source)' };
+  }
+  const args = enabled
+    ? ['add', RUN_KEY, '/v', AUTOSTART_NAME, '/t', 'REG_SZ', '/d', `"${exe}"`, '/f']
+    : ['delete', RUN_KEY, '/v', AUTOSTART_NAME, '/f'];
+  const ok = execQuiet('reg.exe', args);
+  return ok ? { ok: true } : { ok: false, error: 'could not update the registry' };
 }
 
 // Параметры прокси для GramJS: SOCKS5 или MTProto (tg://proxy).
@@ -370,11 +387,22 @@ app.get('/api/state', guard, async (req, res) => {
 app.get('/api/settings', guard, (req, res) => {
   res.json({
     autoMount: settings.autoMount,
+    autoStart: settings.autoStart,
+    canAutoStart: !!process.env.TD_APP_EXE,
     proxy: settings.proxy,
     mounted,
     mode: MOUNT_MODE,
     drive: DRIVE,
   });
+});
+
+app.post('/api/settings/autostart', guard, (req, res) => {
+  const enabled = !!(req.body && req.body.enabled);
+  const result = applyAutoStart(enabled);
+  if (!result.ok) return res.status(400).json({ error: result.error, autoStart: settings.autoStart });
+  settings.autoStart = enabled;
+  saveSettings();
+  res.json({ ok: true, autoStart: settings.autoStart });
 });
 
 app.post('/api/settings/auto-mount', guard, (req, res) => {
@@ -601,6 +629,10 @@ app.listen(PORT, '127.0.0.1', () => {
     mountDrive('startup');
   } else {
     console.log('auto-mount is disabled');
+  }
+  if (settings.autoStart) {
+    const r = applyAutoStart(true);
+    console.log(r.ok ? 'autostart entry refreshed' : `autostart entry failed: ${r.error}`);
   }
   if (process.stdin.isTTY) {
     console.log('Закройте это окно или нажмите Ctrl+C, чтобы остановить и отмонтировать диск.');

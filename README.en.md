@@ -13,6 +13,7 @@
 - If a background upload fails, a `<name>.upload-failed.txt` note with the reason appears in the same folder.
 - Tray icon menu: **Console**, **Drive** (check mark when mounted, click to mount/unmount), **Exit**.
 - Mount the drive at startup (configurable) and Mount/Unmount buttons in the web console.
+- Start with Windows (autostart), toggled in the web console and off by default.
 - Telegram traffic goes through SOCKS5 or MTProto proxy; the proxy is configured in the web console before and after sign-in, and a `tg://proxy` link can be pasted as-is.
 
 ## Layout

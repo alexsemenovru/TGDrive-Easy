@@ -88,6 +88,8 @@ function renderSettings(s) {
   $('autoMount').checked = !!s.autoMount;
   $('mountBtn').disabled = !!s.mounted;
   $('unmountBtn').disabled = !s.mounted;
+  $('autoStart').checked = !!s.autoStart;
+  $('autoStart').disabled = !s.canAutoStart;
 
   const p = s.proxy || { type: 'none' };
   $('proxyType').value = p.type || 'none';
@@ -118,6 +120,21 @@ $('autoMount').addEventListener('change', async () => {
       ? 'The drive will be mounted at every start.'
       : 'The drive will not be mounted automatically.');
   } catch (e) {
+    setStatus($('settingsStatus'), e.message, true);
+  }
+});
+
+$('autoStart').addEventListener('change', async () => {
+  try {
+    const out = await api('/api/settings/autostart', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: $('autoStart').checked }),
+    });
+    setStatus($('settingsStatus'), out.autoStart
+      ? 'TGDrive-Easy will start with Windows.'
+      : 'Autostart is off.');
+  } catch (e) {
+    $('autoStart').checked = !$('autoStart').checked;
     setStatus($('settingsStatus'), e.message, true);
   }
 });
