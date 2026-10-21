@@ -9,6 +9,8 @@ const state = {
   nextOffset: 0,
   total: 0,
   loading: false,
+  view: 'login',
+  settings: null,
 };
 
 function el(tag, props = {}, children = []) {
@@ -55,9 +57,168 @@ function fmtDate(ms) {
   return new Date(ms).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Views
+// ---------------------------------------------------------------------------
+function showView(name) {
+  state.view = name;
+  $('settingsView').hidden = name !== 'settings';
+  $('loginView').hidden = name !== 'login';
+  $('filesView').hidden = name !== 'files';
+  $('settingsBtn').textContent = name === 'settings' ? '✕ Close' : '⚙ Settings';
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+async function loadSettings() {
+  try {
+    const s = await api('/api/settings');
+    state.settings = s;
+    renderSettings(s);
+  } catch (e) {
+    setStatus($('settingsStatus'), e.message, true);
+  }
+}
+
+function renderSettings(s) {
+  $('driveInfo').textContent = s.mounted
+    ? `Drive ${s.drive} is mounted (${s.mode}).`
+    : `Drive ${s.drive} is not mounted (${s.mode}).`;
+  $('autoMount').checked = !!s.autoMount;
+  $('mountBtn').disabled = !!s.mounted;
+  $('unmountBtn').disabled = !s.mounted;
+
+  const p = s.proxy || { type: 'none' };
+  $('proxyType').value = p.type || 'none';
+  $('proxyHost').value = p.host || '';
+  $('proxyPort').value = p.port || '';
+  $('proxyUser').value = p.user || '';
+  $('proxyPass').value = p.pass || '';
+  $('proxySecret').value = p.secret || '';
+  updateProxyFields();
+}
+
+function updateProxyFields() {
+  const type = $('proxyType').value;
+  $('proxyFields').hidden = type === 'none';
+  $('socksFields').hidden = type !== 'socks5';
+  $('mtFields').hidden = type !== 'mtproto';
+}
+
+$('proxyType').addEventListener('change', updateProxyFields);
+
+$('autoMount').addEventListener('change', async () => {
+  try {
+    await api('/api/settings/auto-mount', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: $('autoMount').checked }),
+    });
+    setStatus($('settingsStatus'), $('autoMount').checked
+      ? 'The drive will be mounted at every start.'
+      : 'The drive will not be mounted automatically.');
+  } catch (e) {
+    setStatus($('settingsStatus'), e.message, true);
+  }
+});
+
+$('mountBtn').addEventListener('click', async () => {
+  setStatus($('settingsStatus'), 'Mounting…');
+  try {
+    const out = await api('/api/mount', { method: 'POST' });
+    setStatus($('settingsStatus'), out.mounted ? 'Drive mounted.' : 'Mount failed.');
+    await loadSettings();
+  } catch (e) {
+    setStatus($('settingsStatus'), e.message, true);
+  }
+});
+
+$('unmountBtn').addEventListener('click', async () => {
+  setStatus($('settingsStatus'), 'Unmounting…');
+  try {
+    await api('/api/unmount', { method: 'POST' });
+    setStatus($('settingsStatus'), 'Drive unmounted.');
+    await loadSettings();
+  } catch (e) {
+    setStatus($('settingsStatus'), e.message, true);
+  }
+});
+
+$('proxySave').addEventListener('click', async () => {
+  const body = {
+    type: $('proxyType').value,
+    host: $('proxyHost').value.trim(),
+    port: Number($('proxyPort').value) || 0,
+    user: $('proxyUser').value.trim(),
+    pass: $('proxyPass').value,
+    secret: $('proxySecret').value.trim(),
+  };
+  if (body.type !== 'none' && (!body.host || !body.port)) {
+    return setStatus($('settingsStatus'), 'Server and port are required.', true);
+  }
+  if (body.type === 'mtproto' && !body.secret) {
+    return setStatus($('settingsStatus'), 'MTProto secret is required.', true);
+  }
+  setStatus($('settingsStatus'), 'Applying…');
+  try {
+    const out = await api('/api/settings/proxy', { method: 'POST', body: JSON.stringify(body) });
+    let msg = 'Proxy saved.';
+    if (out.connected) msg += ' Telegram connection restored.';
+    else if (out.error) msg += ` Connection: ${out.error}`;
+    else msg += ' Sign in to check the connection.';
+    setStatus($('settingsStatus'), msg, !!out.error);
+    await loadSettings();
+  } catch (e) {
+    setStatus($('settingsStatus'), e.message, true);
+  }
+});
+
+function parseProxyLink(text) {
+  const m = String(text || '').match(/tg:\/\/proxy\?([^\s]+)/i);
+  if (!m) return false;
+  const params = new URLSearchParams(m[1]);
+  const server = params.get('server');
+  const port = params.get('port');
+  const secret = params.get('secret');
+  if (!server || !port || !secret) return false;
+  $('proxyType').value = 'mtproto';
+  $('proxyHost').value = server;
+  $('proxyPort').value = port;
+  $('proxySecret').value = secret;
+  updateProxyFields();
+  return true;
+}
+
+$('proxyPaste').addEventListener('click', async () => {
+  let text = '';
+  try {
+    text = await navigator.clipboard.readText();
+  } catch (_) {
+    text = prompt('Paste a tg://proxy link:') || '';
+  }
+  if (!parseProxyLink(text)) {
+    setStatus($('settingsStatus'), 'No tg://proxy link found in the clipboard.', true);
+  } else {
+    setStatus($('settingsStatus'), 'Link parsed — press "Save and apply".');
+  }
+});
+
+$('settingsBtn').addEventListener('click', async () => {
+  if (state.view === 'settings') {
+    showView(state.authorized ? 'files' : 'login');
+    return;
+  }
+  await loadSettings();
+  showView('settings');
+});
+
+$('settingsClose').addEventListener('click', () => {
+  showView(state.authorized ? 'files' : 'login');
+});
+
+// ---------------------------------------------------------------------------
 // Login
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 function showStep(name) {
   for (const s of ['stepPhone', 'stepCode', 'stepPassword']) {
     $(s).hidden = s !== name;
@@ -65,8 +226,7 @@ function showStep(name) {
 }
 
 async function startLogin() {
-  $('loginView').hidden = false;
-  $('filesView').hidden = true;
+  showView('login');
   showStep('stepPhone');
 }
 
@@ -143,20 +303,21 @@ $('logoutBtn').addEventListener('click', async () => {
   try { await api('/api/auth/logout', { method: 'POST' }); } catch (_) {}
   state.items = [];
   state.selected.clear();
+  state.authorized = false;
   $('userBox').hidden = true;
   await startLogin();
 });
 
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Files
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 async function enterApp() {
   const st = await api('/api/state');
-  if (!st.authorized) return startLogin();
-  $('loginView').hidden = true;
-  $('filesView').hidden = false;
+  state.authorized = !!st.authorized;
+  if (!state.authorized) return startLogin();
   $('userBox').hidden = false;
   $('userName').textContent = st.me.name || st.me.username || 'account';
+  showView('files');
   await loadFiles(true);
 }
 
@@ -279,15 +440,15 @@ $('uploadInput').addEventListener('change', async (e) => {
   }
 });
 
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 (async function init() {
   try {
     const st = await api('/api/state');
+    state.authorized = !!st.authorized;
     if (st.authorized) await enterApp();
     else await startLogin();
   } catch (e) {
-    $('loginView').hidden = false;
-    showStep('stepPhone');
+    showView('login');
     setStatus($('loginStatus'), `Server unavailable: ${e.message}`, true);
   }
 })();

@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,11 +44,14 @@ const (
 	nifTip     = 0x0004
 
 	mfString = 0x0000
+	mfChecked = 0x0008
+	mfSeparator = 0x0800
 	tpmReturnCmd = 0x0100
 	tpmRightButton = 0x0002
 
 	idConsole = 1
 	idExit    = 2
+	idDisk    = 3
 )
 
 var (
@@ -323,9 +328,53 @@ func cleanup() {
 	runHidden("net.exe", "use", driveLetter, "/delete", "/y")
 }
 
+// Запрос к локальному серверу от имени трея (отдельный токен в data/control.token).
+func control(method, path string) (map[string]any, error) {
+	tok, err := os.ReadFile(filepath.Join(dataDir, "control.token"))
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(method, fmt.Sprintf("http://127.0.0.1:%d%s", port, path), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("x-td-control", strings.TrimSpace(string(tok)))
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func isMounted() bool {
+	st, err := control("GET", "/api/app/status")
+	if err != nil {
+		logf("status request failed: %v", err)
+		return false
+	}
+	v, _ := st["mounted"].(bool)
+	return v
+}
+
 func showMenu(hwnd uintptr) {
+	mounted := isMounted()
+
 	hMenu, _, _ := procCreatePopupMenu.Call()
 	procAppendMenu.Call(hMenu, mfString, idConsole, uintptr(unsafe.Pointer(utf16("Консоль"))))
+
+	diskFlags := uintptr(mfString)
+	if mounted {
+		diskFlags |= mfChecked
+	}
+	procAppendMenu.Call(hMenu, diskFlags, idDisk, uintptr(unsafe.Pointer(utf16("Диск"))))
+
+	procAppendMenu.Call(hMenu, mfSeparator, 0, 0)
 	procAppendMenu.Call(hMenu, mfString, idExit, uintptr(unsafe.Pointer(utf16("Выход"))))
 
 	var pt point
@@ -338,6 +387,14 @@ func showMenu(hwnd uintptr) {
 	switch id {
 	case idConsole:
 		openConsole()
+	case idDisk:
+		if mounted {
+			control("POST", "/api/app/unmount")
+			logf("drive unmounted from tray")
+		} else {
+			control("POST", "/api/app/mount")
+			logf("drive mounted from tray")
+		}
 	case idExit:
 		procDestroyWindow.Call(hwnd)
 	}

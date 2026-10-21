@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const express = require('express');
 const multer = require('multer');
@@ -6,46 +6,109 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { once } = require('events');
+const { execFile, execFileSync, spawn } = require('child_process');
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 
+// Данные (сессия, настройки, индекс) можно держать отдельно от кода — так
+// делает EXE-лаунчер, распаковывая сервер в отдельный каталог.
 const DATA_DIR = process.env.TD_DATA_DIR
   ? path.resolve(process.env.TD_DATA_DIR)
   : path.join(__dirname, 'data');
 require('dotenv').config({ path: path.join(DATA_DIR, '.env') });
 
 const PORT = Number(process.env.PORT || 4100);
-// РџСѓР±Р»РёС‡РЅС‹Рµ СѓС‡С‘С‚РЅС‹Рµ РґР°РЅРЅС‹Рµ РІРµР±-РєР»РёРµРЅС‚Р° Telegram (С‚Рµ Р¶Рµ, СЃ РєРѕС‚РѕСЂС‹РјРё СЂР°Р±РѕС‚Р°РµС‚
-// web.telegram.org). Р РµРіРёСЃС‚СЂР°С†РёСЏ РїСЂРёР»РѕР¶РµРЅРёСЏ РІ my.telegram.org РЅРµ С‚СЂРµР±СѓРµС‚СЃСЏ.
+// Публичные учётные данные веб-клиента Telegram (те же, с которыми работает
+// web.telegram.org). Регистрация приложения в my.telegram.org не требуется.
 const API_ID = Number(process.env.TG_API_ID || 2040);
 const API_HASH = process.env.TG_API_HASH || 'b18441a1ff607e10a989891a5462e627';
 
-const PROXY = process.env.SOCKS_PROXY === 'off'
-  ? undefined
-  : {
-      ip: process.env.SOCKS_IP || '127.0.0.1',
-      port: Number(process.env.SOCKS_PORT || 10808),
-      socksType: 5,
-      timeout: 15,
-    };
-
 const TMP_DIR = path.join(DATA_DIR, 'tmp');
 const SESSION_FILE = path.join(DATA_DIR, 'session.txt');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 for (const dir of [DATA_DIR, TMP_DIR]) fs.mkdirSync(dir, { recursive: true });
 
 const DAV_USER = process.env.DAV_USER || 'teledrive';
 const DAV_PASS = process.env.DAV_PASS || 'teledrive';
 
-// Р”РёСЃРє РјРѕРЅС‚РёСЂСѓРµС‚СЃСЏ Рё РґРµРјРѕРЅС‚РёСЂСѓРµС‚СЃСЏ СЃР°РјРёРј СЃРµСЂРІРµСЂРѕРј: Р·Р°РєСЂС‹С‚РёРµ РѕРєРЅР° РєРѕРЅСЃРѕР»Рё
-// (SIGHUP) РёР»Рё Ctrl+C СЃРЅРёРјР°РµС‚ РґРёСЃРє, РЅРёС‡РµРіРѕ РЅРµ РѕСЃС‚Р°С‘С‚СЃСЏ В«РІРёСЃРµС‚СЊВ».
-const { execFileSync, spawn } = require('child_process');
 const DRIVE = process.env.TD_DRIVE || 'Z:';
 const MOUNT_MODE = (process.env.MOUNT_MODE || 'webdav').toLowerCase();
 const RCLONE_EXE = process.env.RCLONE_EXE || 'C:\\teledrive-stack\\rclone\\rclone-v1.75.2-windows-amd64\\rclone.exe';
 const RCLONE_CONF = process.env.RCLONE_CONF || 'C:\\teledrive-stack\\rclone\\rclone.conf';
+const PID_FILE = path.join(DATA_DIR, 'server.pid');
+const CONTROL_FILE = path.join(DATA_DIR, 'control.token');
+
 let rcloneProc = null;
 let mounted = false;
-const PID_FILE = path.join(DATA_DIR, 'server.pid');
+
+// ---------------------------------------------------------------------------
+// Настройки
+// ---------------------------------------------------------------------------
+function proxyFromEnv() {
+  if (process.env.SOCKS_PROXY === 'off') return { type: 'none' };
+  return {
+    type: 'socks5',
+    host: process.env.SOCKS_IP || '127.0.0.1',
+    port: Number(process.env.SOCKS_PORT || 10808),
+    user: '',
+    pass: '',
+    secret: '',
+  };
+}
+
+function loadSettings() {
+  let s = {};
+  try {
+    // файл могут сохранить редакторы/PowerShell с BOM — срезаем его
+    const raw = fs.readFileSync(SETTINGS_FILE, 'utf8').replace(/^\uFEFF/, '');
+    s = JSON.parse(raw);
+  } catch (_) {
+    s = {};
+  }
+  if (typeof s.autoMount !== 'boolean') s.autoMount = true;
+  if (!s.proxy || typeof s.proxy !== 'object') s.proxy = proxyFromEnv();
+  return s;
+}
+
+const settings = loadSettings();
+
+function saveSettings() {
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+  } catch (e) {
+    console.error('settings save failed:', e.message);
+  }
+}
+
+// Параметры прокси для GramJS: SOCKS5 или MTProto (tg://proxy).
+function proxyOptions() {
+  const p = settings.proxy || { type: 'none' };
+  if (p.type === 'none') return undefined;
+  if (p.type === 'mtproto') {
+    return { ip: p.host, port: Number(p.port), secret: p.secret, MTProxy: true, timeout: 15 };
+  }
+  const out = { ip: p.host, port: Number(p.port), socksType: 5, timeout: 15 };
+  if (p.user) out.username = p.user;
+  if (p.pass) out.password = p.pass;
+  return out;
+}
+
+function proxyLabel() {
+  const p = settings.proxy || { type: 'none' };
+  if (p.type === 'none') return 'off';
+  return `${p.type} ${p.host}:${p.port}`;
+}
+
+// ---------------------------------------------------------------------------
+// Диск
+// ---------------------------------------------------------------------------
+// net.exe обращается к нашему же WebDAV-серверу, поэтому синхронный вызов
+// заблокировал бы event loop и монтирование «зависло» бы навсегда.
+function execAsync(file, args, timeout = 30000) {
+  return new Promise((resolve) => {
+    execFile(file, args, { timeout, windowsHide: true }, (err) => resolve(!err));
+  });
+}
 
 function execQuiet(file, args, opts = {}) {
   try {
@@ -56,52 +119,10 @@ function execQuiet(file, args, opts = {}) {
   }
 }
 
-async function mountDrive() {
-  if (mounted) return;
-  if (MOUNT_MODE === 'rclone' && fs.existsSync(RCLONE_EXE) && fs.existsSync(RCLONE_CONF)) {
-    try {
-      rcloneProc = spawn(RCLONE_EXE, [
-        'mount', 'td:', DRIVE, '--config', RCLONE_CONF,
-        '--vfs-cache-mode', 'writes', '--volname', 'TeleDrive',
-        '--rc', '--rc-no-auth', '--rc-addr', '127.0.0.1:5572',
-        '--log-file', 'C:\\teledrive-stack\\logs\\rclone.log', '--log-level', 'INFO', '--no-console',
-      ], { stdio: 'ignore' });
-      mounted = true;
-      console.log(`drive ${DRIVE} mounted via rclone`);
-      return;
-    } catch (e) {
-      console.error('rclone mount failed:', e.message);
-    }
-  }
-  // РЎР»СѓР¶Р±Р° WebClient РёРЅРѕРіРґР° Р·Р°РїСѓСЃРєР°РµС‚СЃСЏ СЃ РїРµСЂРІРѕРіРѕ СЂР°Р·Р° РЅРµ СЃСЂР°Р·Сѓ вЂ” РїСЂРѕР±СѓРµРј РµС‰С‘.
-  const mountArgs = [
-    'use', DRIVE, `http://localhost:${PORT}/dav`,
-    `/user:${DAV_USER}`, DAV_PASS, '/persistent:no',
-  ];
-  for (let attempt = 1; attempt <= 10; attempt++) {
-    let ok = execQuiet('net.exe', mountArgs);
-    if (!ok) {
-      // В«Р·Р°Р»РёРїС€РµРµВ» РїРѕРґРєР»СЋС‡РµРЅРёРµ РѕС‚ РїСЂРѕС€Р»РѕРіРѕ Р·Р°РїСѓСЃРєР° РјРµС€Р°РµС‚ вЂ” СЃРЅРёРјР°РµРј Рё РїСЂРѕР±СѓРµРј СЃРЅРѕРІР°
-      execQuiet('net.exe', ['use', DRIVE, '/delete', '/y']);
-      ok = execQuiet('net.exe', mountArgs);
-    }
-    if (ok) {
-      mounted = true;
-      console.log(`drive ${DRIVE} mounted`);
-      warmDrive();
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  console.log(`drive ${DRIVE} is not mounted (busy or webdav unavailable)`);
-}
-
-// РџРµСЂРІРѕРµ РѕР±СЂР°С‰РµРЅРёРµ Рє С‚РѕР»СЊРєРѕ С‡С‚Рѕ СЃРјРѕРЅС‚РёСЂРѕРІР°РЅРЅРѕРјСѓ WebDAV-РґРёСЃРєСѓ С‡Р°СЃС‚Рѕ РїР°РґР°РµС‚,
-// РїРѕРєР° СЃР»СѓР¶Р±Р° WebClient РЅРµ В«РїСЂРѕРіСЂРµРµС‚СЃСЏВ». Р§РёС‚Р°РµРј РґРёСЃРє РЅРµСЃРєРѕР»СЊРєРѕ СЂР°Р·.
 async function warmDrive() {
   for (let i = 0; i < 15; i++) {
     try {
-      fs.readdirSync(`${DRIVE}\\`);
+      await fs.promises.readdir(`${DRIVE}\\`);
       console.log('drive warmed');
       return;
     } catch (_) {}
@@ -110,7 +131,46 @@ async function warmDrive() {
   console.log('drive warm-up did not finish');
 }
 
-function unmountDrive() {  if (!mounted) return;
+async function mountDrive(reason = 'startup') {
+  if (mounted) return true;
+
+  if (MOUNT_MODE === 'rclone' && fs.existsSync(RCLONE_EXE) && fs.existsSync(RCLONE_CONF)) {
+    try {
+      rcloneProc = spawn(RCLONE_EXE, [
+        'mount', 'td:', DRIVE, '--config', RCLONE_CONF,
+        '--vfs-cache-mode', 'writes', '--volname', 'TeleDrive',
+        '--rc', '--rc-no-auth', '--rc-addr', '127.0.0.1:5572',
+        '--log-file', path.join(DATA_DIR, 'rclone.log'), '--log-level', 'INFO', '--no-console',
+      ], { stdio: 'ignore' });
+      mounted = true;
+      console.log(`drive ${DRIVE} mounted via rclone (${reason})`);
+      return true;
+    } catch (e) {
+      console.error('rclone mount failed:', e.message);
+    }
+  }
+
+  const mountArgs = [
+    'use', DRIVE, `http://localhost:${PORT}/dav`,
+    `/user:${DAV_USER}`, DAV_PASS, '/persistent:no',
+  ];
+  for (let attempt = 1; attempt <= 8; attempt++) {
+    if (await execAsync('net.exe', mountArgs)) {
+      mounted = true;
+      console.log(`drive ${DRIVE} mounted (${reason})`);
+      warmDrive();
+      return true;
+    }
+    // залипшее подключение от прошлого запуска мешает — снимаем и пробуем снова
+    await execAsync('net.exe', ['use', DRIVE, '/delete', '/y'], 15000);
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  console.log(`drive ${DRIVE} is not mounted (busy or webdav unavailable)`);
+  return false;
+}
+
+function unmountDrive() {
+  if (!mounted) return false;
   mounted = false;
   if (rcloneProc) {
     execQuiet(RCLONE_EXE, ['rc', '--rc-addr', '127.0.0.1:5572', 'core/quit']);
@@ -119,6 +179,7 @@ function unmountDrive() {  if (!mounted) return;
   }
   const ok = execQuiet('net.exe', ['use', DRIVE, '/delete', '/y']);
   console.log(ok ? `drive ${DRIVE} unmounted` : `drive ${DRIVE} unmount skipped`);
+  return true;
 }
 
 function shutdown(reason) {
@@ -136,8 +197,13 @@ process.on('exit', () => {
   try { fs.unlinkSync(PID_FILE); } catch (_) {}
 });
 
-// РћРґРЅРѕСЂР°Р·РѕРІС‹Р№ С‚РѕРєРµРЅ РЅР° РїСЂРѕС†РµСЃСЃ: Р·Р°С‰РёС‰Р°РµС‚ Р»РѕРєР°Р»СЊРЅС‹Р№ API РѕС‚ РѕР±СЂР°С‰РµРЅРёР№ С‡СѓР¶РёС… СЃР°Р№С‚РѕРІ.
+// ---------------------------------------------------------------------------
+// Telegram-клиент
+// ---------------------------------------------------------------------------
 const TOKEN = crypto.randomBytes(16).toString('hex');
+// отдельный токен для управления из трея (лежит рядом с данными)
+const CONTROL_TOKEN = crypto.randomBytes(8).toString('hex');
+fs.writeFileSync(CONTROL_FILE, CONTROL_TOKEN, 'utf8');
 
 let client = null;
 let me = null;
@@ -146,7 +212,7 @@ let login = null; // { phoneNumber, phoneCodeHash }
 async function newClient(session = '') {
   const c = new TelegramClient(new StringSession(session), API_ID, API_HASH, {
     connectionRetries: 3,
-    proxy: PROXY,
+    proxy: proxyOptions(),
     useWSS: false,
   });
   await c.connect();
@@ -178,8 +244,25 @@ function errText(e) {
   return (e && (e.errorMessage || e.message)) || String(e);
 }
 
+// Пересоздаёт клиента с новыми настройками прокси. Работает и до входа.
+async function applyProxy() {
+  try { if (client) await client.disconnect(); } catch (_) {}
+  client = null;
+  me = null;
+  login = null;
+  if (!fs.existsSync(SESSION_FILE)) return { connected: false };
+  try {
+    await ensureClient();
+    await refreshMe();
+    return { connected: !!me };
+  } catch (e) {
+    console.error('proxy apply: reconnect failed:', errText(e));
+    return { connected: false, error: errText(e) };
+  }
+}
+
 // ---------------------------------------------------------------------------
-// РћРїРёСЃР°РЅРёРµ С„Р°Р№Р»Р° РёР· СЃРѕРѕР±С‰РµРЅРёСЏ
+// Описание файла из сообщения
 // ---------------------------------------------------------------------------
 function describe(m) {
   const date = (m.date || 0) * 1000;
@@ -187,8 +270,7 @@ function describe(m) {
   if (!media) return null;
   const cls = media.className || '';
 
-  // РўРѕР»СЊРєРѕ РЅР°СЃС‚РѕСЏС‰РёРµ С„Р°Р№Р»С‹: РґРѕРєСѓРјРµРЅС‚С‹ Рё С„РѕС‚РѕРіСЂР°С„РёРё.
-  // Р’РµР±-СЃС‚СЂР°РЅРёС†С‹ СЃ РїСЂРµРІСЊСЋ, РіРµРѕР»РѕРєР°С†РёРё Рё РїСЂРѕС‡РµРµ РїСЂРѕРїСѓСЃРєР°РµРј.
+  // Только настоящие файлы: документы и фотографии.
   if (cls === 'MessageMediaDocument') {
     const doc = media.document;
     if (!doc) return null;
@@ -235,6 +317,11 @@ function guard(req, res, next) {
   next();
 }
 
+function controlGuard(req, res, next) {
+  if ((req.get('x-td-control') || '') !== CONTROL_TOKEN) return res.status(403).json({ error: 'forbidden' });
+  next();
+}
+
 app.get('/', (req, res) => {
   const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   res.set('Cache-Control', 'no-store');
@@ -243,15 +330,14 @@ app.get('/', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
-// РЎРµС‚РµРІРѕР№ РґРёСЃРє: WebDAV РїРѕРІРµСЂС… В«РР·Р±СЂР°РЅРЅРѕРіРѕВ»
+// Сетевой диск: WebDAV поверх «Избранного»
 const store = require('./store')({ getClient: ensureClient, describe, dataDir: DATA_DIR, log: (m) => console.error(m) });
 
 function addToIndex(info) {
   if (info && info.size > 0) store.add(info);
 }
 
-// Telegram: 2 Р“Р‘ РЅР° С„Р°Р№Р», 4 Р“Р‘ СЃ Premium.
-// MAX_UPLOAD_BYTES РІ .env РїРµСЂРµРѕРїСЂРµРґРµР»СЏРµС‚ Р»РёРјРёС‚ (РЅР°РїСЂРёРјРµСЂ, РґР»СЏ РїСЂРѕРІРµСЂРєРё РїРѕРІРµРґРµРЅРёСЏ).
+// Telegram: 2 ГБ на файл, 4 ГБ с Premium.
 function maxUploadBytes() {
   const forced = Number(process.env.MAX_UPLOAD_BYTES || 0);
   if (forced > 0) return forced;
@@ -269,11 +355,76 @@ app.use('/dav', require('./dav')({
   log: (msg) => console.error(msg),
 }));
 
+// --- состояние и настройки ---
 app.get('/api/state', guard, async (req, res) => {
   if (!me) await refreshMe();
-  res.json({ authorized: !!me, me: me ? { id: String(me.id), name: [me.firstName, me.lastName].filter(Boolean).join(' '), username: me.username || null } : null });
+  res.json({
+    authorized: !!me,
+    me: me ? { id: String(me.id), name: [me.firstName, me.lastName].filter(Boolean).join(' '), username: me.username || null } : null,
+    mounted,
+    autoMount: settings.autoMount,
+    proxy: settings.proxy,
+  });
 });
 
+app.get('/api/settings', guard, (req, res) => {
+  res.json({
+    autoMount: settings.autoMount,
+    proxy: settings.proxy,
+    mounted,
+    mode: MOUNT_MODE,
+    drive: DRIVE,
+  });
+});
+
+app.post('/api/settings/auto-mount', guard, (req, res) => {
+  settings.autoMount = !!(req.body && req.body.enabled);
+  saveSettings();
+  res.json({ ok: true, autoMount: settings.autoMount });
+});
+
+app.post('/api/settings/proxy', guard, async (req, res) => {
+  const b = req.body || {};
+  const type = ['none', 'socks5', 'mtproto'].includes(b.type) ? b.type : 'none';
+  settings.proxy = {
+    type,
+    host: String(b.host || '').trim(),
+    port: Number(b.port) || 0,
+    user: String(b.user || '').trim(),
+    pass: String(b.pass || ''),
+    secret: String(b.secret || '').trim(),
+  };
+  saveSettings();
+  const result = await applyProxy();
+  res.json({ ok: true, proxy: settings.proxy, connected: result.connected, error: result.error });
+});
+
+app.post('/api/mount', guard, async (req, res) => {
+  const ok = await mountDrive('web');
+  res.json({ ok, mounted });
+});
+
+app.post('/api/unmount', guard, (req, res) => {
+  unmountDrive();
+  res.json({ ok: true, mounted });
+});
+
+// --- управление из трея ---
+app.get('/api/app/status', controlGuard, (req, res) => {
+  res.json({ mounted, autoMount: settings.autoMount, mode: MOUNT_MODE });
+});
+
+app.post('/api/app/mount', controlGuard, async (req, res) => {
+  const ok = await mountDrive('tray');
+  res.json({ ok, mounted });
+});
+
+app.post('/api/app/unmount', controlGuard, (req, res) => {
+  unmountDrive();
+  res.json({ ok: true, mounted });
+});
+
+// --- авторизация ---
 app.post('/api/auth/send-code', guard, async (req, res) => {
   const phone = String((req.body && req.body.phone) || '').trim();
   if (!phone) return res.status(400).json({ error: 'phone required' });
@@ -318,10 +469,7 @@ app.post('/api/auth/password', guard, async (req, res) => {
   try {
     await client.signInWithPassword(
       { apiId: API_ID, apiHash: API_HASH },
-      {
-        password: async () => password,
-        onError: (e) => { throw e; },
-      }
+      { password: async () => password, onError: (e) => { throw e; } }
     );
     await saveSession();
     await refreshMe();
@@ -342,6 +490,7 @@ app.post('/api/auth/logout', guard, async (req, res) => {
   res.json({ ok: true });
 });
 
+// --- файлы ---
 app.get('/api/files', guard, async (req, res) => {
   try {
     if (!me) await refreshMe();
@@ -420,13 +569,12 @@ app.post('/api/upload', guard, upload.array('files', 20), async (req, res) => {
           file: f.path,
           forceDocument: true,
           caption: '',
-          // СЃРѕС…СЂР°РЅСЏРµРј РёСЃС…РѕРґРЅРѕРµ РёРјСЏ С„Р°Р№Р»Р°, Р° РЅРµ РёРјСЏ РІСЂРµРјРµРЅРЅРѕРіРѕ С„Р°Р№Р»Р°
+          // сохраняем исходное имя, а не имя временного файла
           attributes: [new Api.DocumentAttributeFilename({ fileName: f.originalname })],
           progressCallback: () => {},
         });
         uploaded.push({ id: m.id, name: f.originalname, size: f.size });
-        const info = describe(m);
-        addToIndex(info);
+        addToIndex(describe(m));
       } finally {
         fs.unlink(f.path, () => {});
       }
@@ -442,18 +590,20 @@ app.use((err, req, res, next) => {
   res.status(400).json({ error: err.message || 'request failed' });
 });
 
-// РЎРµСЂРІРµСЂ РґРѕР»Р¶РµРЅ РїРѕРґРЅРёРјР°С‚СЊСЃСЏ РЅРµР·Р°РІРёСЃРёРјРѕ РѕС‚ РґРѕСЃС‚СѓРїРЅРѕСЃС‚Рё Telegram:
-// РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ СЃРµСЃСЃРёРё РёРґС‘С‚ РІ С„РѕРЅРµ, РёРЅР°С‡Рµ РїСЂРё РЅРµРґРѕСЃС‚СѓРїРЅРѕРј РїСЂРѕРєСЃРё
-// РїРѕСЂС‚ РЅРµ РѕС‚РєСЂС‹РІР°РµС‚СЃСЏ Рё РїСЂРёР»РѕР¶РµРЅРёРµ РІС‹РіР»СЏРґРёС‚ В«РјС‘СЂС‚РІС‹РјВ».
+// Сервер должен подниматься независимо от доступности Telegram.
 app.listen(PORT, '127.0.0.1', () => {
-  console.log(`teledrive-mine: http://127.0.0.1:${PORT}  (proxy: ${PROXY ? PROXY.ip + ':' + PROXY.port : 'off'}, mode: ${MOUNT_MODE})`);
+  console.log(`teledrive: http://127.0.0.1:${PORT}  (proxy: ${proxyLabel()}, mode: ${MOUNT_MODE})`);
   try {
-    fs.mkdirSync(path.dirname(PID_FILE), { recursive: true });
     fs.writeFileSync(PID_FILE, String(process.pid), 'utf8');
+    fs.writeFileSync(CONTROL_FILE, CONTROL_TOKEN, 'utf8');
   } catch (_) {}
-  mountDrive();
+  if (settings.autoMount) {
+    mountDrive('startup');
+  } else {
+    console.log('auto-mount is disabled');
+  }
   if (process.stdin.isTTY) {
-    console.log('Р—Р°РєСЂРѕР№С‚Рµ СЌС‚Рѕ РѕРєРЅРѕ РёР»Рё РЅР°Р¶РјРёС‚Рµ Ctrl+C, С‡С‚РѕР±С‹ РѕСЃС‚Р°РЅРѕРІРёС‚СЊ Рё РѕС‚РјРѕРЅС‚РёСЂРѕРІР°С‚СЊ РґРёСЃРє.');
+    console.log('Закройте это окно или нажмите Ctrl+C, чтобы остановить и отмонтировать диск.');
   }
 });
 
@@ -469,5 +619,3 @@ app.listen(PORT, '127.0.0.1', () => {
     }
   }
 })();
-
-
