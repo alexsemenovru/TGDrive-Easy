@@ -56,10 +56,10 @@ if [ ! -f "$ASSETS/icon.png" ]; then
 fi
 
 echo "3b/4 go mod download"
+cd "$ROOT"
 go mod download
 
 echo "4/4 go build"
-cd "$ROOT"
 CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o "$DIST/tgdrive-easy" .
 
 cat > "$DIST/tgdrive-easy.sh" <<'SH'
