@@ -249,14 +249,26 @@ async function loadUpdate(force = false) {
   try {
     const u = await api('/api/update' + (force ? '?force=1' : ''));
     $('currentVersion').textContent = u.current;
-    if (u.updateAvailable) {
+    const banner = $('updateBanner');
+    const label = banner.querySelector('span');
+    const link = $('updateLink');
+    banner.hidden = false;
+    if (u.updateAvailable && u.url) {
+      banner.classList.remove('muted');
+      label.textContent = t('banner.updateAvailable');
+      link.hidden = false;
+      link.textContent = u.latest;
+      link.href = u.url;
       $('updateStatus').textContent = t('status.updateAvailable', { version: u.latest });
-      $('updateBanner').hidden = false;
-      $('updateLink').textContent = t('banner.download') + ' ' + u.latest;
-      $('updateLink').href = u.url;
     } else if (u.error) {
+      banner.classList.add('muted');
+      label.textContent = t('banner.updateError');
+      link.hidden = true;
       $('updateStatus').textContent = t('status.updateError', { error: u.error });
     } else {
+      banner.classList.add('muted');
+      label.textContent = t('banner.upToDate', { version: u.current });
+      link.hidden = true;
       $('updateStatus').textContent = t('status.upToDate');
     }
   } catch (e) {

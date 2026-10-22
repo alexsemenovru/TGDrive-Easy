@@ -10,7 +10,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 
 | Platform | File | Status |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | stable **v1.2.6** |
+| Windows | `TGDrive-Easy.exe` | stable **v1.2.7** |
 | Linux | `TGDrive-Easy-x86_64-beta.AppImage` | **beta** — not tested on real Linux |
 | macOS | `TGDrive-Easy-macos-beta.zip` (contains `.app`) | **beta** — not tested on a real Mac |
 

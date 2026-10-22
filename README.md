@@ -10,7 +10,7 @@
 
 | Платформа | Файл | Статус |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | стабильная **v1.2.6** |
+| Windows | `TGDrive-Easy.exe` | стабильная **v1.2.7** |
 | Linux | `TGDrive-Easy-x86_64-beta.AppImage` | **beta** — сборка не проверялась на реальном Linux |
 | macOS | `TGDrive-Easy-macos-beta.zip` (внутри `.app`) | **beta** — сборка не проверялась на реальном Mac |
 

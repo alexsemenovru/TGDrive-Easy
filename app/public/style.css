@@ -98,3 +98,5 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-si
   color: #cfe6ff; font-size: 14px;
 }
 .banner a { color: #7cc0ff; }
+
+.banner.muted { background: rgba(255, 255, 255, 0.04); color: var(--muted, #8b98a9); }

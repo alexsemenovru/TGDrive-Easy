@@ -746,7 +746,7 @@ app.use((err, req, res, next) => {
 // Сервер должен подниматься независимо от доступности Telegram.
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`teledrive: http://127.0.0.1:${PORT}  (proxy: ${proxyLabel()}, mode: ${MOUNT_MODE})`);
-    setTimeout(() => { checkUpdate().catch(() => {}); }, 4000).unref();
+    setTimeout(() => { checkUpdate(true).catch(() => {}); }, 4000).unref();
   try {
     fs.writeFileSync(PID_FILE, String(process.pid), 'utf8');
     fs.writeFileSync(CONTROL_FILE, CONTROL_TOKEN, 'utf8');
