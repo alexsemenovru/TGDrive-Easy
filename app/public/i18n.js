@@ -1,5 +1,8 @@
 'use strict';
 
+// IIFE: глобальная функция t конфликтовала бы с `const { t }` в app.js.
+(function () {
+
 // Словари интерфейса. Ключи общие для веб-консоли и лаунчера.
 const DICT = {
   en: {
@@ -237,3 +240,4 @@ window.TD_I18N = {
   detect,
   get lang() { return lang; },
 };
+})();
