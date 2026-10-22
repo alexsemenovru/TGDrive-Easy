@@ -70,6 +70,22 @@ HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters
   FileSizeLimitInBytes = 4294967295
 ```
 
+## Linux и macOS
+
+Сервер и веб-интерфейс кроссплатформенные, для Unix есть отдельный лаунчер с треем:
+
+```bash
+cd unix
+./build.sh
+```
+
+Нужны Go 1.21+, Node.js 18, а в Linux ещё GTK3 и libayatana-appindicator3.
+
+- Linux: диск монтируется через GVFS (`gio mount dav://…`), трей — AppIndicator.
+- macOS: диск монтируется через Finder (`mount volume`), трей — значок в строке меню; сборка выполняется на macOS.
+- Если трей недоступен (нет панели или библиотек), приложение не падает: работает без трея, открывает консоль и раздаёт WebDAV.
+- Автозапуск: `.desktop` в Linux, LaunchAgent в macOS.
+
 ## Ограничения
 
 - Telegram: 2 ГБ на файл, 4 ГБ с Premium; клиент Windows не передаёт файлы больше 4 ГБ.

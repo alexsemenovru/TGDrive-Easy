@@ -7,6 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { once } = require('events');
 const { execFile, execFileSync, spawn } = require('child_process');
+const platform = require('./platform');
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 
@@ -31,7 +32,8 @@ for (const dir of [DATA_DIR, TMP_DIR]) fs.mkdirSync(dir, { recursive: true });
 const DAV_USER = process.env.DAV_USER || 'teledrive';
 const DAV_PASS = process.env.DAV_PASS || 'teledrive';
 
-const DRIVE = process.env.TD_DRIVE || 'Z:';
+const DRIVE = process.env.TD_DRIVE || (process.platform === 'win32' ? 'Z:' : 'TGDrive-Easy');
+const DRIVE_LABEL = (platform.mountLabel && platform.mountLabel()) || DRIVE;
 const MOUNT_MODE = (process.env.MOUNT_MODE || 'webdav').toLowerCase();
 const RCLONE_EXE = process.env.RCLONE_EXE || 'C:\\teledrive-stack\\rclone\\rclone-v1.75.2-windows-amd64\\rclone.exe';
 const RCLONE_CONF = process.env.RCLONE_CONF || 'C:\\teledrive-stack\\rclone\\rclone.conf';
@@ -81,20 +83,9 @@ function saveSettings() {
   }
 }
 
-// Автозапуск при входе в Windows: ключ Run в HKCU, без прав администратора.
-const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
-const AUTOSTART_NAME = 'TGDrive-Easy';
-
-function applyAutoStart(enabled) {
-  const exe = process.env.TD_APP_EXE;
-  if (!exe) {
-    return { ok: false, error: 'executable path is unknown (running from source)' };
-  }
-  const args = enabled
-    ? ['add', RUN_KEY, '/v', AUTOSTART_NAME, '/t', 'REG_SZ', '/d', `"${exe}"`, '/f']
-    : ['delete', RUN_KEY, '/v', AUTOSTART_NAME, '/f'];
-  const ok = execQuiet('reg.exe', args);
-  return ok ? { ok: true } : { ok: false, error: 'could not update the registry' };
+// Автозапуск при входе: реализация зависит от платформы.
+async function applyAutoStart(enabled) {
+  return platform.setAutostart(enabled, { exePath: process.env.TD_APP_EXE });
 }
 
 // Параметры прокси для GramJS: SOCKS5 или MTProto (tg://proxy).
@@ -151,7 +142,8 @@ async function warmDrive() {
 async function mountDrive(reason = 'startup') {
   if (mounted) return true;
 
-  if (MOUNT_MODE === 'rclone' && fs.existsSync(RCLONE_EXE) && fs.existsSync(RCLONE_CONF)) {
+  if (MOUNT_MODE === 'rclone' && process.platform === 'win32'
+      && fs.existsSync(RCLONE_EXE) && fs.existsSync(RCLONE_CONF)) {
     try {
       rcloneProc = spawn(RCLONE_EXE, [
         'mount', 'td:', DRIVE, '--config', RCLONE_CONF,
@@ -167,26 +159,18 @@ async function mountDrive(reason = 'startup') {
     }
   }
 
-  const mountArgs = [
-    'use', DRIVE, `http://localhost:${PORT}/dav`,
-    `/user:${DAV_USER}`, DAV_PASS, '/persistent:no',
-  ];
-  for (let attempt = 1; attempt <= 8; attempt++) {
-    if (await execAsync('net.exe', mountArgs)) {
-      mounted = true;
-      console.log(`drive ${DRIVE} mounted (${reason})`);
-      warmDrive();
-      return true;
-    }
-    // залипшее подключение от прошлого запуска мешает — снимаем и пробуем снова
-    await execAsync('net.exe', ['use', DRIVE, '/delete', '/y'], 15000);
-    await new Promise((r) => setTimeout(r, 1500));
+  const res = await platform.mount({ drive: DRIVE, port: PORT, user: DAV_USER, pass: DAV_PASS });
+  if (res.ok) {
+    mounted = true;
+    console.log(`drive ${DRIVE_LABEL} mounted (${reason})`);
+    if (process.platform === 'win32') warmDrive();
+    return true;
   }
-  console.log(`drive ${DRIVE} is not mounted (busy or webdav unavailable)`);
+  console.log(`drive mount failed: ${res.error || 'unknown error'}`);
   return false;
 }
 
-function unmountDrive() {
+async function unmountDrive() {
   if (!mounted) return false;
   mounted = false;
   if (rcloneProc) {
@@ -194,23 +178,24 @@ function unmountDrive() {
     try { rcloneProc.kill(); } catch (_) {}
     rcloneProc = null;
   }
-  const ok = execQuiet('net.exe', ['use', DRIVE, '/delete', '/y']);
-  console.log(ok ? `drive ${DRIVE} unmounted` : `drive ${DRIVE} unmount skipped`);
-  return true;
+  const res = await platform.unmount({ drive: DRIVE, port: PORT });
+  console.log(res.ok ? `drive ${DRIVE_LABEL} unmounted` : `drive ${DRIVE_LABEL} unmount skipped`);
+  return res.ok;
 }
 
 function shutdown(reason) {
   try { console.log(`shutting down (${reason})`); } catch (_) {}
-  unmountDrive();
   try { fs.unlinkSync(PID_FILE); } catch (_) {}
-  process.exit(0);
+  const finish = () => process.exit(0);
+  Promise.resolve(unmountDrive()).finally(finish);
+  setTimeout(finish, 4000).unref();
 }
 
 process.on('SIGHUP', () => shutdown('console closed'));
 process.on('SIGINT', () => shutdown('Ctrl+C'));
 process.on('SIGTERM', () => shutdown('terminated'));
 process.on('exit', () => {
-  if (mounted) unmountDrive();
+  if (mounted) unmountDrive().catch(() => {});
   try { fs.unlinkSync(PID_FILE); } catch (_) {}
 });
 
@@ -339,6 +324,8 @@ function controlGuard(req, res, next) {
   next();
 }
 
+app.get('/ping', (_req, res) => res.json({ pong: true }));
+
 app.get('/', (req, res) => {
   const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   res.set('Cache-Control', 'no-store');
@@ -393,12 +380,15 @@ app.get('/api/settings', guard, (req, res) => {
     mounted,
     mode: MOUNT_MODE,
     drive: DRIVE,
+    driveLabel: DRIVE_LABEL,
+    platform: platform.name,
+    mountAvailable: !!platform.mountAvailable,
   });
 });
 
-app.post('/api/settings/autostart', guard, (req, res) => {
+app.post('/api/settings/autostart', guard, async (req, res) => {
   const enabled = !!(req.body && req.body.enabled);
-  const result = applyAutoStart(enabled);
+  const result = await applyAutoStart(enabled);
   if (!result.ok) return res.status(400).json({ error: result.error, autoStart: settings.autoStart });
   settings.autoStart = enabled;
   saveSettings();
@@ -631,8 +621,9 @@ app.listen(PORT, '127.0.0.1', () => {
     console.log('auto-mount is disabled');
   }
   if (settings.autoStart) {
-    const r = applyAutoStart(true);
-    console.log(r.ok ? 'autostart entry refreshed' : `autostart entry failed: ${r.error}`);
+    applyAutoStart(true)
+      .then((r) => console.log(r.ok ? 'autostart entry refreshed' : `autostart entry failed: ${r.error}`))
+      .catch((e) => console.log('autostart error:', e.message));
   }
   if (process.stdin.isTTY) {
     console.log('Закройте это окно или нажмите Ctrl+C, чтобы остановить и отмонтировать диск.');

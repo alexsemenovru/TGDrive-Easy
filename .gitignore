@@ -7,3 +7,8 @@ assets/*.gz
 session.txt
 tray.log
 app.log
+
+unix/assets/*.tar.gz
+unix/assets/app.zip
+unix/dist/
+

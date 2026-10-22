@@ -70,6 +70,22 @@ HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters
   FileSizeLimitInBytes = 4294967295
 ```
 
+## Linux and macOS
+
+The server and the web UI are cross-platform; Unix has its own tray launcher:
+
+```bash
+cd unix
+./build.sh
+```
+
+Requires Go 1.21+, Node.js 18 and, on Linux, GTK3 plus libayatana-appindicator3.
+
+- Linux: the drive is mounted through GVFS (`gio mount dav://…`), the tray is an AppIndicator.
+- macOS: the drive is mounted through Finder (`mount volume`), the tray is a menu bar item; build it on macOS.
+- If no tray is available (no panel or libraries), the app keeps working headless: opens the console and serves WebDAV.
+- Autostart: `.desktop` on Linux, a LaunchAgent on macOS.
+
 ## Limitations
 
 - Telegram: 2 GB per file, 4 GB with Premium; the Windows WebDAV client does not transfer files larger than 4 GB.
