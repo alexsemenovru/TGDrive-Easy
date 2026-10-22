@@ -120,6 +120,64 @@ function saveSettings() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Проверка обновлений (GitHub Releases, latest)
+// ---------------------------------------------------------------------------
+const APP_VERSION = (process.env.TD_APP_VERSION || '1.2.6').replace(/^v/, '');
+const UPDATE_API = 'https://api.github.com/repos/alexsemenovru/TGDrive-Easy/releases/latest';
+const UPDATE_TTL_MS = 12 * 60 * 60 * 1000;
+
+function parseVersion(value) {
+  return String(value || '').replace(/^v/, '').split(/[.+-]/).slice(0, 3)
+    .map((n) => parseInt(n, 10) || 0);
+}
+
+function isNewerVersion(latest, current) {
+  const a = parseVersion(latest);
+  const b = parseVersion(current);
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+
+async function fetchLatestRelease() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const res = await fetch(UPDATE_API, {
+      headers: { 'user-agent': 'TGDrive-Easy', accept: 'application/vnd.github+json' },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const data = await res.json();
+    return {
+      latest: String(data.tag_name || '').replace(/^v/, ''),
+      url: data.html_url || '',
+      publishedAt: data.published_at || '',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function checkUpdate(force = false) {
+  const cached = settings.updateCheck;
+  if (!force && cached && cached.checkedAt && Date.now() - cached.checkedAt < UPDATE_TTL_MS) {
+    return cached;
+  }
+  try {
+    const info = await fetchLatestRelease();
+    settings.updateCheck = Object.assign({}, info, { checkedAt: Date.now(), error: '' });
+  } catch (e) {
+    settings.updateCheck = Object.assign({}, cached || {}, { checkedAt: Date.now(), error: errText(e) });
+    console.log('update check failed:', errText(e));
+  }
+  saveSettings();
+  return settings.updateCheck;
+}
+
 // Автозапуск при входе: реализация зависит от платформы.
 async function applyAutoStart(enabled) {
   return platform.setAutostart(enabled, { exePath: process.env.TD_APP_EXE });
@@ -451,6 +509,18 @@ app.post('/api/settings/language', guard, (req, res) => {
   res.json({ ok: true, language: value, effectiveLanguage: resolveLanguage(req) });
 });
 
+app.get('/api/update', guard, async (req, res) => {
+  const info = await checkUpdate(req.query.force === '1');
+  res.json({
+    current: APP_VERSION,
+    latest: info.latest || '',
+    updateAvailable: !!info.latest && isNewerVersion(info.latest, APP_VERSION),
+    url: info.url || '',
+    checkedAt: info.checkedAt || 0,
+    error: info.error || '',
+  });
+});
+
 app.post('/api/settings/autostart', guard, async (req, res) => {
   const enabled = !!(req.body && req.body.enabled);
   const result = await applyAutoStart(enabled);
@@ -676,6 +746,7 @@ app.use((err, req, res, next) => {
 // Сервер должен подниматься независимо от доступности Telegram.
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`teledrive: http://127.0.0.1:${PORT}  (proxy: ${proxyLabel()}, mode: ${MOUNT_MODE})`);
+    setTimeout(() => { checkUpdate().catch(() => {}); }, 4000).unref();
   try {
     fs.writeFileSync(PID_FILE, String(process.pid), 'utf8');
     fs.writeFileSync(CONTROL_FILE, CONTROL_TOKEN, 'utf8');

@@ -25,7 +25,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.2.5"
+	buildVersion = "1.2.6"
 	port         = 4100
 	driveLetter  = "Z:"
 
@@ -319,7 +319,7 @@ func startNode() error {
 	exePath, _ := os.Executable()
 	cmd := exec.Command(nodeExe, serverJs)
 	cmd.Dir = runtimeDir
-	cmd.Env = append(os.Environ(), "TD_DATA_DIR="+dataDir, "TD_APP_EXE="+exePath)
+	cmd.Env = append(os.Environ(), "TD_DATA_DIR="+dataDir, "TD_APP_EXE="+exePath, "TD_APP_VERSION="+buildVersion)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}

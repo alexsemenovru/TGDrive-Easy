@@ -90,3 +90,11 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-si
 
 .foot .author { color: var(--accent, #4a9eff); text-decoration: none; }
 .foot .author:hover { text-decoration: underline; }
+
+.banner {
+  display: flex; gap: 8px; align-items: center;
+  margin: 12px 24px 0; padding: 10px 14px;
+  border-radius: 10px; background: rgba(51, 144, 236, 0.12);
+  color: #cfe6ff; font-size: 14px;
+}
+.banner a { color: #7cc0ff; }

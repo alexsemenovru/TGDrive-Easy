@@ -21,6 +21,11 @@
     </div>
   </header>
 
+  <div id="updateBanner" class="banner" hidden>
+    <span data-i18n="banner.updateAvailable"></span>
+    <a id="updateLink" target="_blank" rel="noopener"></a>
+  </div>
+
   <main>
     <!-- Settings -->
     <section id="settingsView" class="card" hidden>
@@ -33,6 +38,13 @@
         <option value="ru">Русский</option>
       </select>
       <p class="hint" data-i18n="settings.languageHint"></p>
+
+      <h2 data-i18n="settings.updates">Updates</h2>
+      <p class="muted"><span data-i18n="settings.currentVersion">Current version:</span> <b id="currentVersion">—</b></p>
+      <p class="muted" id="updateStatus"></p>
+      <div class="row">
+        <button id="updateBtn" class="ghost" data-i18n="settings.checkUpdates">Check for updates</button>
+      </div>
 
       <h2 data-i18n="settings.drive">Drive</h2>
       <p class="muted" id="driveInfo">—</p>

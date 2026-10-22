@@ -236,11 +236,37 @@ $('settingsBtn').addEventListener('click', async () => {
     return;
   }
   await loadSettings();
+  await loadUpdate();
   showView('settings');
 });
 
 $('settingsClose').addEventListener('click', () => {
   showView(state.authorized ? 'files' : 'login');
+});
+
+
+async function loadUpdate(force = false) {
+  try {
+    const u = await api('/api/update' + (force ? '?force=1' : ''));
+    $('currentVersion').textContent = u.current;
+    if (u.updateAvailable) {
+      $('updateStatus').textContent = t('status.updateAvailable', { version: u.latest });
+      $('updateBanner').hidden = false;
+      $('updateLink').textContent = t('banner.download') + ' ' + u.latest;
+      $('updateLink').href = u.url;
+    } else if (u.error) {
+      $('updateStatus').textContent = t('status.updateError', { error: u.error });
+    } else {
+      $('updateStatus').textContent = t('status.upToDate');
+    }
+  } catch (e) {
+    $('updateStatus').textContent = t('status.updateError', { error: e.message });
+  }
+}
+
+$('updateBtn').addEventListener('click', async () => {
+  $('updateStatus').textContent = t('status.checkingUpdates');
+  await loadUpdate(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -474,6 +500,7 @@ $('uploadInput').addEventListener('change', async (e) => {
     } catch (_) {
       window.TD_I18N.setLang(window.TD_I18N.detect());
     }
+    loadUpdate();
     const st = await api('/api/state');
     state.authorized = !!st.authorized;
     if (st.authorized) await enterApp();

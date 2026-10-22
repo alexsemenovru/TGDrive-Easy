@@ -10,7 +10,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 
 | Platform | File | Status |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | stable **v1.2.5** |
+| Windows | `TGDrive-Easy.exe` | stable **v1.2.6** |
 | Linux | `TGDrive-Easy-x86_64-beta.AppImage` | **beta** — not tested on real Linux |
 | macOS | `TGDrive-Easy-macos-beta.zip` (contains `.app`) | **beta** — not tested on a real Mac |
 
@@ -26,6 +26,7 @@ The Windows build is a full release. Linux and macOS are marked `beta` only beca
 - Tray menu: **Console**, **Drive** (check mark when mounted, click to mount/unmount), **Exit**.
 - Mount the drive at startup (configurable) and Mount/Unmount buttons in the web console.
 - Start at login (off by default): registry on Windows, `.desktop` on Linux, a LaunchAgent on macOS.
+- update check: the console compares its version with the latest GitHub release, shows a banner with a link and a "Check for updates" button;
 - Telegram traffic goes through SOCKS5 or MTProto proxy; configure it in the web console before and after sign-in, and paste a `tg://proxy` link as-is.
 
 - English and Russian interface: switch the language in Settings; by default it follows the system locale (Russian locale means Russian, otherwise English);
