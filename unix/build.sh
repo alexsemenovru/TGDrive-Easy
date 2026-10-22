@@ -39,7 +39,7 @@ fi
 python3 - "$APP_SRC" "$ASSETS/app.zip" <<'PY'
 import os, sys, zipfile
 src, dst = sys.argv[1], sys.argv[2]
-files = ["server.js", "dav.js", "store.js", "package.json"]
+files = ["server.js", "dav.js", "store.js", "session.js", "package.json"]
 with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
     for f in files:
         z.write(os.path.join(src, f), f)
@@ -55,11 +55,8 @@ if [ ! -f "$ASSETS/icon.png" ]; then
   echo "assets/icon.png is required"; exit 1
 fi
 
-echo "3b/4 go mod download"
-cd "$ROOT"
-go mod download
-
 echo "4/4 go build"
+cd "$ROOT"
 CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o "$DIST/tgdrive-easy" .
 
 cat > "$DIST/tgdrive-easy.sh" <<'SH'

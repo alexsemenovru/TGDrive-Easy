@@ -50,11 +50,13 @@ jobs:
           npm --prefix app install --omit=dev --no-audit --no-fund
           bash unix/build.sh
       - name: package AppImage
-        run: bash unix/package-appimage.sh
+        run: |
+          bash unix/package-appimage.sh
+          mv unix/dist/TGDrive-Easy-x86_64.AppImage unix/dist/TGDrive-Easy-x86_64-beta.AppImage
       - uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: unix/dist/TGDrive-Easy-x86_64.AppImage
+          path: unix/dist/TGDrive-Easy-x86_64-beta.AppImage
 
   macos:
     runs-on: macos-latest
@@ -71,11 +73,13 @@ jobs:
           npm --prefix app install --omit=dev --no-audit --no-fund
           bash unix/build.sh
       - name: package .app
-        run: bash unix/package-macos.sh
+        run: |
+          bash unix/package-macos.sh
+          mv unix/dist/TGDrive-Easy-macos.zip unix/dist/TGDrive-Easy-macos-beta.zip
       - uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: unix/dist/TGDrive-Easy-macos.zip
+          path: unix/dist/TGDrive-Easy-macos-beta.zip
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -97,6 +101,6 @@ jobs:
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           files: |
             artifacts/windows-exe/TGDrive-Easy.exe
-            artifacts/linux-appimage/TGDrive-Easy-x86_64.AppImage
-            artifacts/macos-app/TGDrive-Easy-macos.zip
+            artifacts/linux-appimage/TGDrive-Easy-x86_64-beta.AppImage
+            artifacts/macos-app/TGDrive-Easy-macos-beta.zip
             artifacts/SHA256SUMS.txt

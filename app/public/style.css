@@ -87,3 +87,6 @@ select {
 }
 code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 #settingsView { max-width: 560px; }
+
+.foot .author { color: var(--accent, #4a9eff); text-decoration: none; }
+.foot .author:hover { text-decoration: underline; }

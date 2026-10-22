@@ -25,7 +25,7 @@ const API_ID = Number(process.env.TG_API_ID || 2040);
 const API_HASH = process.env.TG_API_HASH || 'b18441a1ff607e10a989891a5462e627';
 
 const TMP_DIR = path.join(DATA_DIR, 'tmp');
-const SESSION_FILE = path.join(DATA_DIR, 'session.txt');
+const sessionStore = require('./session');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 for (const dir of [DATA_DIR, TMP_DIR]) fs.mkdirSync(dir, { recursive: true });
 
@@ -260,13 +260,13 @@ async function newClient(session = '') {
 
 async function ensureClient() {
   if (client && client.connected) return client;
-  const saved = fs.existsSync(SESSION_FILE) ? fs.readFileSync(SESSION_FILE, 'utf8').trim() : '';
+  const saved = sessionStore.load();
   client = await newClient(saved);
   return client;
 }
 
 async function saveSession() {
-  fs.writeFileSync(SESSION_FILE, client.session.save(), 'utf8');
+  sessionStore.save(client.session.save());
 }
 
 async function refreshMe() {
@@ -289,7 +289,7 @@ async function applyProxy() {
   client = null;
   me = null;
   login = null;
-  if (!fs.existsSync(SESSION_FILE)) return { connected: false };
+  if (!sessionStore.exists()) return { connected: false };
   try {
     await ensureClient();
     await refreshMe();
@@ -410,8 +410,15 @@ app.get('/api/state', guard, async (req, res) => {
 
 function resolveLanguage(req) {
   if (settings.language === 'en' || settings.language === 'ru') return settings.language;
+  // В режиме auto главнее локаль ОС, а не язык браузера: на русской Windows
+  // Edge может отдавать en-US, и интерфейс ошибочно становился английским.
+  const os = String(Intl.DateTimeFormat().resolvedOptions().locale || '').toLowerCase();
+  if (os.startsWith('ru')) return 'ru';
+  if (os.startsWith('en')) return 'en';
   const accept = String((req && req.headers && req.headers['accept-language']) || '').toLowerCase();
-  if (accept.split(',')[0].trim().startsWith('ru')) return 'ru';
+  const first = accept.split(',')[0].trim();
+  if (first.startsWith('ru')) return 'ru';
+  if (first.startsWith('en')) return 'en';
   const env = String(process.env.LC_ALL || process.env.LANG || '').toLowerCase();
   if (env.startsWith('ru')) return 'ru';
   return 'en';
@@ -560,7 +567,7 @@ app.post('/api/auth/logout', guard, async (req, res) => {
   try {
     if (client) await client.logOut();
   } catch (_) {}
-  try { fs.unlinkSync(SESSION_FILE); } catch (_) {}
+  try { sessionStore.clear(); } catch (_) {}
   me = null;
   login = null;
   res.json({ ok: true });
@@ -689,7 +696,7 @@ app.listen(PORT, '127.0.0.1', () => {
 });
 
 (async () => {
-  if (fs.existsSync(SESSION_FILE)) {
+  if (sessionStore.exists()) {
     try {
       await ensureClient();
       await refreshMe();

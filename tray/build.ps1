@@ -1,4 +1,4 @@
-﻿#requires -Version 5.1
+#requires -Version 5.1
 # РЎРѕР±РёСЂР°РµС‚ РµРґРёРЅС‹Р№ EXE: Go-Р»Р°СѓРЅС‡РµСЂ + СЃР¶Р°С‚С‹Р№ Node.js + СЃРµСЂРІРµСЂ.
 # РўСЂРµР±СѓРµС‚СЃСЏ: Go 1.21+, Node.js 18+ (РґР»СЏ СѓРїР°РєРѕРІРєРё), Python + Pillow (РёРєРѕРЅРєР°).
 param(
@@ -25,7 +25,8 @@ Write-Host '2/5 staging app files'
 if (Test-Path $Stage) { Remove-Item $Stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 Copy-Item (Join-Path $AppSrc 'server.js'), (Join-Path $AppSrc 'dav.js'),
-          (Join-Path $AppSrc 'store.js'), (Join-Path $AppSrc 'package.json') $Stage
+          (Join-Path $AppSrc 'store.js'), (Join-Path $AppSrc 'session.js'), (Join-Path $AppSrc 'package.json') $Stage
+Copy-Item (Join-Path $AppSrc 'platform') $Stage -Recurse
 Copy-Item (Join-Path $AppSrc 'public') $Stage -Recurse
 Push-Location $AppSrc
 npm install --omit=dev --no-audit --no-fund | Out-Host
