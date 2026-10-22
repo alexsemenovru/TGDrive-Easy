@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TeleDrive Local — Saved Messages</title>
+  <title>TGDrive-Easy — Saved Messages</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <span class="logo">✈</span>
-      <span>TeleDrive <b>Local</b></span>
+      <span data-i18n="brand">TGDrive-Easy</span>
     </div>
     <div class="user">
-      <button id="settingsBtn" class="ghost" title="Settings">⚙ Settings</button>
+      <button id="settingsBtn" class="ghost" data-i18n="settings.open" data-i18n-title="settings.title">⚙ Settings</button>
       <span id="userBox" hidden>
         <span id="userName"></span>
-        <button id="logoutBtn" class="link">Sign out</button>
+        <button id="logoutBtn" class="link" data-i18n="logout">Sign out</button>
       </span>
     </div>
   </header>
@@ -24,76 +24,84 @@
   <main>
     <!-- Settings -->
     <section id="settingsView" class="card" hidden>
-      <h1>Settings</h1>
+      <h1 data-i18n="settings.title">Settings</h1>
 
-      <h2>Drive</h2>
+      <h2 data-i18n="settings.language">Language</h2>
+      <select id="languageSelect">
+        <option value="auto" data-i18n="settings.languageAuto">System</option>
+        <option value="en">English</option>
+        <option value="ru">Русский</option>
+      </select>
+      <p class="hint" data-i18n="settings.languageHint"></p>
+
+      <h2 data-i18n="settings.drive">Drive</h2>
       <p class="muted" id="driveInfo">—</p>
-      <label class="check"><input type="checkbox" id="autoMount" /> Mount the drive at startup</label>
+      <label class="check"><input type="checkbox" id="autoMount" /> <span data-i18n="settings.autoMount">Mount the drive at startup</span></label>
       <div class="row">
-        <button id="mountBtn" class="primary">Mount</button>
-        <button id="unmountBtn" class="ghost">Unmount</button>
+        <button id="mountBtn" class="primary" data-i18n="settings.mount">Mount</button>
+        <button id="unmountBtn" class="ghost" data-i18n="settings.unmount">Unmount</button>
       </div>
-      <label class="check"><input type="checkbox" id="autoStart" /> Start with Windows (autostart)</label>
+      <label class="check"><input type="checkbox" id="autoStart" /> <span data-i18n="settings.autoStart">Start with the system (autostart)</span></label>
 
-      <h2>Telegram proxy</h2>
-      <label for="proxyType">Type</label>
+      <h2 data-i18n="settings.proxyTitle">Telegram proxy</h2>
+      <label for="proxyType" data-i18n="settings.proxyType">Type</label>
       <select id="proxyType">
-        <option value="socks5">SOCKS5</option>
-        <option value="mtproto">MTProto (tg://proxy)</option>
-        <option value="none">No proxy (direct)</option>
+        <option value="socks5" data-i18n="settings.proxySocks5">SOCKS5</option>
+        <option value="mtproto" data-i18n="settings.proxyMtproto">MTProto (tg://proxy)</option>
+        <option value="none" data-i18n="settings.proxyNone">No proxy (direct)</option>
       </select>
 
       <div id="proxyFields">
-        <label for="proxyHost">Server</label>
+        <label for="proxyHost" data-i18n="settings.server">Server</label>
         <input id="proxyHost" placeholder="127.0.0.1" autocomplete="off" />
-        <label for="proxyPort">Port</label>
+        <label for="proxyPort" data-i18n="settings.port">Port</label>
         <input id="proxyPort" type="number" placeholder="10808" />
         <div id="socksFields">
-          <label for="proxyUser">Username (optional)</label>
+          <label for="proxyUser" data-i18n="settings.user">Username (optional)</label>
           <input id="proxyUser" autocomplete="off" />
-          <label for="proxyPass">Password (optional)</label>
+          <label for="proxyPass" data-i18n="settings.pass">Password (optional)</label>
           <input id="proxyPass" type="password" autocomplete="off" />
         </div>
         <div id="mtFields" hidden>
-          <label for="proxySecret">Secret</label>
+          <label for="proxySecret" data-i18n="settings.secret">Secret</label>
           <input id="proxySecret" placeholder="dd0123456789abcdef..." autocomplete="off" />
-          <p class="hint">You can paste a whole <code>tg://proxy?server=…&amp;port=…&amp;secret=…</code> link — the fields will be filled in.</p>
+          <p class="hint" data-i18n="settings.proxyHint"></p>
         </div>
       </div>
 
       <div class="row">
-        <button id="proxySave" class="primary">Save and apply</button>
-        <button id="proxyPaste" class="link">Paste tg:// link</button>
+        <button id="proxySave" class="primary" data-i18n="settings.saveApply">Save and apply</button>
+        <button id="proxyPaste" class="link" data-i18n="settings.pasteLink">Paste tg:// link</button>
       </div>
 
       <p class="status" id="settingsStatus"></p>
-      <button id="settingsClose" class="link">Close</button>
+      <button id="settingsClose" class="link" data-i18n="settings.closeBtn">Close</button>
     </section>
 
     <!-- Login -->
     <section id="loginView" class="card" hidden>
-      <h1>Sign in to Telegram</h1>
-      <p class="muted">Enter your phone number, then the code from Telegram. No API keys required.</p>
+      <h1 data-i18n="login.title">Sign in to Telegram</h1>
+      <p class="muted" data-i18n="login.subtitle"></p>
 
       <div id="stepPhone">
-        <label for="phone">Phone number</label>
-        <input id="phone" type="tel" placeholder="+7 999 123-45-67" autocomplete="tel" />
-        <button id="sendCodeBtn" class="primary">Send code</button>
+        <label for="phone" data-i18n="login.phone">Phone number</label>
+        <input id="phone" type="tel" data-i18n-placeholder="login.phonePlaceholder" autocomplete="tel" />
+        <button id="sendCodeBtn" class="primary" data-i18n="login.sendCode">Send code</button>
       </div>
 
       <div id="stepCode" hidden>
-        <label for="code">Code from Telegram</label>
-        <input id="code" type="text" inputmode="numeric" placeholder="12345" autocomplete="one-time-code" />
+        <label for="code" data-i18n="login.code">Code from Telegram</label>
+        <input id="code" type="text" inputmode="numeric" data-i18n-placeholder="login.codePlaceholder" autocomplete="one-time-code" />
         <p class="hint" id="codeHint"></p>
-        <button id="signInBtn" class="primary">Sign in</button>
-        <button id="backBtn" class="link">Change number</button>
+        <button id="signInBtn" class="primary" data-i18n="login.signIn">Sign in</button>
+        <button id="backBtn" class="link" data-i18n="login.changeNumber">Change number</button>
       </div>
 
       <div id="stepPassword" hidden>
-        <label for="password">Two-step verification password</label>
+        <label for="password" data-i18n="login.password">Two-step verification password</label>
         <input id="password" type="password" autocomplete="current-password" />
         <p class="hint" id="passwordHint"></p>
-        <button id="passwordBtn" class="primary">Sign in</button>
+        <button id="passwordBtn" class="primary" data-i18n="login.signIn">Sign in</button>
       </div>
 
       <p class="status" id="loginStatus"></p>
@@ -102,13 +110,13 @@
     <!-- Files -->
     <section id="filesView" hidden>
       <div class="toolbar">
-        <input id="search" type="search" placeholder="Filter by name…" />
-        <button id="refreshBtn" class="ghost">Refresh</button>
+        <input id="search" type="search" data-i18n-placeholder="files.search" />
+        <button id="refreshBtn" class="ghost" data-i18n="files.refresh">Refresh</button>
         <label class="ghost upload">
-          Upload to Saved Messages
+          <span data-i18n="files.upload">Upload to Saved Messages</span>
           <input id="uploadInput" type="file" multiple hidden />
         </label>
-        <button id="downloadBtn" class="primary" disabled>Download selected</button>
+        <button id="downloadBtn" class="primary" disabled data-i18n="files.downloadSelected">Download selected</button>
       </div>
       <p class="status" id="filesStatus"></p>
       <div class="table-wrap">
@@ -116,9 +124,9 @@
           <thead>
             <tr>
               <th class="col-check"><input type="checkbox" id="checkAll" /></th>
-              <th>Name</th>
-              <th class="col-size">Size</th>
-              <th class="col-date">Date</th>
+              <th data-i18n="files.name">Name</th>
+              <th class="col-size" data-i18n="files.size">Size</th>
+              <th class="col-date" data-i18n="files.date">Date</th>
               <th class="col-act"></th>
             </tr>
           </thead>
@@ -126,16 +134,15 @@
         </table>
       </div>
       <div class="more">
-        <button id="moreBtn" class="ghost" hidden>Load more</button>
+        <button id="moreBtn" class="ghost" hidden data-i18n="files.loadMore">Load more</button>
       </div>
     </section>
   </main>
 
-  <footer class="foot">
-    Local client • data stays on this computer • files are stored in Telegram
-  </footer>
+  <footer class="foot" data-i18n="footer"></footer>
 
   <script>window.TD_TOKEN = '__TOKEN__';</script>
+  <script src="/i18n.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

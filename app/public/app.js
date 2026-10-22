@@ -1,6 +1,7 @@
 'use strict';
 
 const TOKEN = window.TD_TOKEN;
+const { t } = window.TD_I18N;
 const $ = (id) => document.getElementById(id);
 
 const state = {
@@ -65,7 +66,7 @@ function showView(name) {
   $('settingsView').hidden = name !== 'settings';
   $('loginView').hidden = name !== 'login';
   $('filesView').hidden = name !== 'files';
-  $('settingsBtn').textContent = name === 'settings' ? '✕ Close' : '⚙ Settings';
+  $('settingsBtn').textContent = name === 'settings' ? t('settings.close') : t('settings.open');
 }
 
 // ---------------------------------------------------------------------------
@@ -82,14 +83,13 @@ async function loadSettings() {
 }
 
 function renderSettings(s) {
-  $('driveInfo').textContent = s.mounted
-    ? `Drive ${s.drive} is mounted (${s.mode}).`
-    : `Drive ${s.drive} is not mounted (${s.mode}).`;
+  $('driveInfo').textContent = t(s.mounted ? 'settings.driveMounted' : 'settings.driveNotMounted', { drive: s.drive, mode: s.mode });
   $('autoMount').checked = !!s.autoMount;
   $('mountBtn').disabled = !!s.mounted;
   $('unmountBtn').disabled = !s.mounted;
   $('autoStart').checked = !!s.autoStart;
   $('autoStart').disabled = !s.canAutoStart;
+  $('languageSelect').value = s.language || 'auto';
 
   const p = s.proxy || { type: 'none' };
   $('proxyType').value = p.type || 'none';
@@ -110,15 +110,27 @@ function updateProxyFields() {
 
 $('proxyType').addEventListener('change', updateProxyFields);
 
+$('languageSelect').addEventListener('change', async () => {
+  try {
+    const out = await api('/api/settings/language', {
+      method: 'POST',
+      body: JSON.stringify({ language: $('languageSelect').value }),
+    });
+    window.TD_I18N.setLang(out.effectiveLanguage || 'en');
+    setStatus($('settingsStatus'), t('status.languageSaved'));
+    await loadSettings();
+  } catch (e) {
+    setStatus($('settingsStatus'), e.message, true);
+  }
+});
+
 $('autoMount').addEventListener('change', async () => {
   try {
     await api('/api/settings/auto-mount', {
       method: 'POST',
       body: JSON.stringify({ enabled: $('autoMount').checked }),
     });
-    setStatus($('settingsStatus'), $('autoMount').checked
-      ? 'The drive will be mounted at every start.'
-      : 'The drive will not be mounted automatically.');
+    setStatus($('settingsStatus'), $('autoMount').checked ? t('status.autoMountOn') : t('status.autoMountOff'));
   } catch (e) {
     setStatus($('settingsStatus'), e.message, true);
   }
@@ -130,9 +142,7 @@ $('autoStart').addEventListener('change', async () => {
       method: 'POST',
       body: JSON.stringify({ enabled: $('autoStart').checked }),
     });
-    setStatus($('settingsStatus'), out.autoStart
-      ? 'TGDrive-Easy will start with Windows.'
-      : 'Autostart is off.');
+    setStatus($('settingsStatus'), out.autoStart ? t('status.autoStartOn') : t('status.autoStartOff'));
   } catch (e) {
     $('autoStart').checked = !$('autoStart').checked;
     setStatus($('settingsStatus'), e.message, true);
@@ -140,10 +150,10 @@ $('autoStart').addEventListener('change', async () => {
 });
 
 $('mountBtn').addEventListener('click', async () => {
-  setStatus($('settingsStatus'), 'Mounting…');
+  setStatus($('settingsStatus'), t('status.mounting'));
   try {
     const out = await api('/api/mount', { method: 'POST' });
-    setStatus($('settingsStatus'), out.mounted ? 'Drive mounted.' : 'Mount failed.');
+    setStatus($('settingsStatus'), out.mounted ? t('status.mountOk') : t('status.mountFailed'));
     await loadSettings();
   } catch (e) {
     setStatus($('settingsStatus'), e.message, true);
@@ -151,10 +161,10 @@ $('mountBtn').addEventListener('click', async () => {
 });
 
 $('unmountBtn').addEventListener('click', async () => {
-  setStatus($('settingsStatus'), 'Unmounting…');
+  setStatus($('settingsStatus'), t('status.unmounting'));
   try {
     await api('/api/unmount', { method: 'POST' });
-    setStatus($('settingsStatus'), 'Drive unmounted.');
+    setStatus($('settingsStatus'), t('status.unmountOk'));
     await loadSettings();
   } catch (e) {
     setStatus($('settingsStatus'), e.message, true);
@@ -171,18 +181,18 @@ $('proxySave').addEventListener('click', async () => {
     secret: $('proxySecret').value.trim(),
   };
   if (body.type !== 'none' && (!body.host || !body.port)) {
-    return setStatus($('settingsStatus'), 'Server and port are required.', true);
+    return setStatus($('settingsStatus'), t('status.portRequired'), true);
   }
   if (body.type === 'mtproto' && !body.secret) {
-    return setStatus($('settingsStatus'), 'MTProto secret is required.', true);
+    return setStatus($('settingsStatus'), t('status.secretRequired'), true);
   }
-  setStatus($('settingsStatus'), 'Applying…');
+  setStatus($('settingsStatus'), t('status.applying'));
   try {
     const out = await api('/api/settings/proxy', { method: 'POST', body: JSON.stringify(body) });
-    let msg = 'Proxy saved.';
-    if (out.connected) msg += ' Telegram connection restored.';
-    else if (out.error) msg += ` Connection: ${out.error}`;
-    else msg += ' Sign in to check the connection.';
+    let msg = t('status.proxySaved');
+    if (out.connected) msg += t('status.proxyRestored');
+    else if (out.error) msg += t('status.proxyNoConn', { error: out.error });
+    else msg += t('status.proxySignIn');
     setStatus($('settingsStatus'), msg, !!out.error);
     await loadSettings();
   } catch (e) {
@@ -214,9 +224,9 @@ $('proxyPaste').addEventListener('click', async () => {
     text = prompt('Paste a tg://proxy link:') || '';
   }
   if (!parseProxyLink(text)) {
-    setStatus($('settingsStatus'), 'No tg://proxy link found in the clipboard.', true);
+    setStatus($('settingsStatus'), t('status.noLink'), true);
   } else {
-    setStatus($('settingsStatus'), 'Link parsed — press "Save and apply".');
+    setStatus($('settingsStatus'), t('status.linkParsed'));
   }
 });
 
@@ -249,17 +259,15 @@ async function startLogin() {
 
 $('sendCodeBtn').addEventListener('click', async () => {
   const phone = $('phone').value.trim();
-  if (!phone) return setStatus($('loginStatus'), 'Enter your phone number', true);
+  if (!phone) return setStatus($('loginStatus'), t('status.enterPhone'), true);
   const btn = $('sendCodeBtn');
   btn.disabled = true;
-  setStatus($('loginStatus'), 'Sending code…');
+  setStatus($('loginStatus'), t('status.sending'));
   try {
     const out = await api('/api/auth/send-code', { method: 'POST', body: JSON.stringify({ phone }) });
     showStep('stepCode');
     setStatus($('loginStatus'), '');
-    $('codeHint').textContent = out.isCodeViaApp
-      ? 'The code was sent to your Telegram app (chat "Telegram").'
-      : 'The code was sent by SMS.';
+    $('codeHint').textContent = out.isCodeViaApp ? t('login.codeViaApp') : t('login.codeViaSms');
     $('code').focus();
   } catch (e) {
     setStatus($('loginStatus'), e.message, true);
@@ -276,7 +284,7 @@ $('backBtn').addEventListener('click', () => {
 async function finishLogin(data) {
   if (data.needPassword) {
     showStep('stepPassword');
-    $('passwordHint').textContent = data.hint ? `Hint: ${data.hint}` : '';
+    $('passwordHint').textContent = data.hint ? t('login.passwordHint', { hint: data.hint }) : '';
     $('password').focus();
     return;
   }
@@ -285,10 +293,10 @@ async function finishLogin(data) {
 
 $('signInBtn').addEventListener('click', async () => {
   const code = $('code').value.trim();
-  if (!code) return setStatus($('loginStatus'), 'Enter the code', true);
+  if (!code) return setStatus($('loginStatus'), t('status.enterCode'), true);
   const btn = $('signInBtn');
   btn.disabled = true;
-  setStatus($('loginStatus'), 'Checking code…');
+  setStatus($('loginStatus'), t('status.checkingCode'));
   try {
     const out = await api('/api/auth/sign-in', { method: 'POST', body: JSON.stringify({ code }) });
     await finishLogin(out);
@@ -301,10 +309,10 @@ $('signInBtn').addEventListener('click', async () => {
 
 $('passwordBtn').addEventListener('click', async () => {
   const password = $('password').value;
-  if (!password) return setStatus($('loginStatus'), 'Enter the password', true);
+  if (!password) return setStatus($('loginStatus'), t('status.enterPassword'), true);
   const btn = $('passwordBtn');
   btn.disabled = true;
-  setStatus($('loginStatus'), 'Checking password…');
+  setStatus($('loginStatus'), t('status.checkingPassword'));
   try {
     await api('/api/auth/password', { method: 'POST', body: JSON.stringify({ password }) });
     await enterApp();
@@ -316,7 +324,7 @@ $('passwordBtn').addEventListener('click', async () => {
 });
 
 $('logoutBtn').addEventListener('click', async () => {
-  if (!confirm('Sign out of this account on this computer?')) return;
+  if (!confirm(t('signout.confirm'))) return;
   try { await api('/api/auth/logout', { method: 'POST' }); } catch (_) {}
   state.items = [];
   state.selected.clear();
@@ -345,7 +353,7 @@ function renderFiles() {
   const visible = state.items.filter((i) => !query || i.name.toLowerCase().includes(query));
 
   if (!visible.length) {
-    tbody.appendChild(el('tr', {}, [el('td', { colspan: '5', class: 'muted', text: 'No files found' })]));
+    tbody.appendChild(el('tr', {}, [el('td', { colspan: '5', class: 'muted', text: t('files.noFiles') })]));
   }
 
   for (const item of visible) {
@@ -359,7 +367,7 @@ function renderFiles() {
 
     const link = el('a', {
       href: `/api/files/${item.id}/download?token=${encodeURIComponent(TOKEN)}`,
-      text: 'Download',
+      text: t('files.download'),
     });
 
     tbody.appendChild(el('tr', {}, [
@@ -376,7 +384,7 @@ function renderFiles() {
 function syncSelection() {
   const n = state.selected.size;
   $('downloadBtn').disabled = n === 0;
-  $('downloadBtn').textContent = n ? `Download selected (${n})` : 'Download selected';
+  $('downloadBtn').textContent = n ? t('files.downloadSelectedN', { n }) : t('files.downloadSelected');
   $('checkAll').checked = n > 0 && n === state.items.length;
 }
 
@@ -395,7 +403,7 @@ $('refreshBtn').addEventListener('click', () => loadFiles(true, true));
 async function loadFiles(reset, force) {
   if (state.loading) return;
   state.loading = true;
-  setStatus($('filesStatus'), reset ? 'Loading list…' : 'Loading more…');
+  setStatus($('filesStatus'), reset ? t('files.loadingList') : t('files.loadingMore'));
   try {
     const offset = reset ? 0 : state.nextOffset;
     const out = await api(`/api/files?limit=50&offset=${offset}${force ? '&refresh=1' : ''}`);
@@ -410,7 +418,7 @@ async function loadFiles(reset, force) {
     state.total = out.total || state.items.length;
     $('moreBtn').hidden = !state.nextOffset;
     renderFiles();
-    setStatus($('filesStatus'), `Showing ${state.items.length} of ${state.total}`);
+    setStatus($('filesStatus'), t('files.showing', { n: state.items.length, total: state.total }));
   } catch (e) {
     setStatus($('filesStatus'), e.message, true);
   } finally {
@@ -423,7 +431,7 @@ $('moreBtn').addEventListener('click', () => loadFiles(false));
 $('downloadBtn').addEventListener('click', async () => {
   const ids = [...state.selected];
   if (!ids.length) return;
-  setStatus($('filesStatus'), `Downloading ${ids.length} file(s)… the browser will ask where to save.`);
+  setStatus($('filesStatus'), t('files.downloading', { n: ids.length }));
   for (const id of ids) {
     const a = el('a', {
       href: `/api/files/${id}/download?token=${encodeURIComponent(TOKEN)}`,
@@ -435,7 +443,7 @@ $('downloadBtn').addEventListener('click', async () => {
     a.remove();
     await new Promise((r) => setTimeout(r, 800));
   }
-  setStatus($('filesStatus'), 'Download requests sent.');
+  setStatus($('filesStatus'), t('files.downloadSent'));
 });
 
 $('uploadInput').addEventListener('change', async (e) => {
@@ -443,11 +451,11 @@ $('uploadInput').addEventListener('change', async (e) => {
   if (!files.length) return;
   const form = new FormData();
   files.forEach((f) => form.append('files', f, f.name));
-  setStatus($('filesStatus'), `Uploading ${files.length} file(s) to Saved Messages… this may take a while.`);
+  setStatus($('filesStatus'), t('files.uploading', { n: files.length }));
   $('uploadInput').disabled = true;
   try {
     const out = await api('/api/upload', { method: 'POST', body: form });
-    setStatus($('filesStatus'), `Uploaded ${out.uploaded.length} of ${files.length}.`);
+    setStatus($('filesStatus'), t('files.uploaded', { done: out.uploaded.length, total: files.length }));
     await loadFiles(true);
   } catch (err) {
     setStatus($('filesStatus'), err.message, true);
@@ -460,12 +468,18 @@ $('uploadInput').addEventListener('change', async (e) => {
 // ---------------------------------------------------------------------------
 (async function init() {
   try {
+    try {
+      const cfg = await api('/api/settings');
+      window.TD_I18N.setLang(cfg.effectiveLanguage || 'en');
+    } catch (_) {
+      window.TD_I18N.setLang(window.TD_I18N.detect());
+    }
     const st = await api('/api/state');
     state.authorized = !!st.authorized;
     if (st.authorized) await enterApp();
     else await startLogin();
   } catch (e) {
     showView('login');
-    setStatus($('loginStatus'), `Server unavailable: ${e.message}`, true);
+    setStatus($('loginStatus'), t('status.serverUnavailable', { error: e.message }), true);
   }
 })();

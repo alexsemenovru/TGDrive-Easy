@@ -105,6 +105,7 @@ function loadSettings() {
   }
   if (typeof s.autoMount !== 'boolean') s.autoMount = true;
   if (typeof s.autoStart !== 'boolean') s.autoStart = false;
+  if (!['auto', 'en', 'ru'].includes(s.language)) s.language = 'auto';
   if (!s.proxy || typeof s.proxy !== 'object') s.proxy = proxyFromEnv();
   return s;
 }
@@ -407,6 +408,15 @@ app.get('/api/state', guard, async (req, res) => {
   });
 });
 
+function resolveLanguage(req) {
+  if (settings.language === 'en' || settings.language === 'ru') return settings.language;
+  const accept = String((req && req.headers && req.headers['accept-language']) || '').toLowerCase();
+  if (accept.split(',')[0].trim().startsWith('ru')) return 'ru';
+  const env = String(process.env.LC_ALL || process.env.LANG || '').toLowerCase();
+  if (env.startsWith('ru')) return 'ru';
+  return 'en';
+}
+
 app.get('/api/settings', guard, (req, res) => {
   res.json({
     autoMount: settings.autoMount,
@@ -419,7 +429,19 @@ app.get('/api/settings', guard, (req, res) => {
     driveLabel: DRIVE_LABEL,
     platform: platform.name,
     mountAvailable: !!platform.mountAvailable,
+    language: settings.language,
+    effectiveLanguage: resolveLanguage(req),
   });
+});
+
+app.post('/api/settings/language', guard, (req, res) => {
+  const value = String((req.body && req.body.language) || 'auto');
+  if (!['auto', 'en', 'ru'].includes(value)) {
+    return res.status(400).json({ error: 'unsupported language' });
+  }
+  settings.language = value;
+  saveSettings();
+  res.json({ ok: true, language: value, effectiveLanguage: resolveLanguage(req) });
 });
 
 app.post('/api/settings/autostart', guard, async (req, res) => {

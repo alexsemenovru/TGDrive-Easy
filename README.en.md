@@ -11,7 +11,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 | Platform | File | Status |
 |---|---|---|
 | Windows | `TGDrive-Easy.exe` | stable **v1.0.1** |
-| Windows / Linux / macOS | the same files in **v1.2.1-beta.2** | cross-platform test build |
+| Windows / Linux / macOS | the same files in **v1.2.2-beta.3** | cross-platform test build |
 | Linux | `TGDrive-Easy-x86_64.AppImage` | beta |
 | macOS | `TGDrive-Easy-macos.zip` (contains `.app`) | beta |
 
@@ -27,7 +27,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 - Start at login (off by default): registry on Windows, `.desktop` on Linux, a LaunchAgent on macOS.
 - Telegram traffic goes through SOCKS5 or MTProto proxy; configure it in the web console before and after sign-in, and paste a `tg://proxy` link as-is.
 
-The interface is English-only for now; Russian is coming in the next release.
+- English and Russian interface: switch the language in Settings; by default it follows the system locale (Russian locale means Russian, otherwise English);
 
 ## Windows
 

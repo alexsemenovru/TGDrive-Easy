@@ -28,7 +28,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.2.1"
+	buildVersion = "1.2.2"
 	port         = 4100
 )
 
@@ -271,14 +271,52 @@ func trayIcon() []byte {
 	return b
 }
 
-func onReady() {
-	systray.SetIcon(trayIcon())
-	systray.SetTooltip(appName + " — Saved Messages drive")
+func currentLanguage() string {
+	if data, err := os.ReadFile(filepath.Join(dataDir, "settings.json")); err == nil {
+		var cfg struct {
+			Language string `json:"language"`
+		}
+		if json.Unmarshal(data, &cfg) == nil {
+			if cfg.Language == "ru" || cfg.Language == "en" {
+				return cfg.Language
+			}
+		}
+	}
+	env := strings.ToLower(os.Getenv("LC_ALL") + " " + os.Getenv("LANG"))
+	if strings.Contains(env, "ru") {
+		return "ru"
+	}
+	return "en"
+}
 
-	mConsole := systray.AddMenuItem("Console", "Open the web console")
-	mDrive := systray.AddMenuItemCheckbox("Drive", "Mount or unmount the drive", isMounted())
+func trayText(lang, key string) string {
+	ru := map[string]string{
+		"console": "\u041a\u043e\u043d\u0441\u043e\u043b\u044c",
+		"drive":   "\u0414\u0438\u0441\u043a",
+		"exit":    "\u0412\u044b\u0445\u043e\u0434",
+		"tip":     "TGDrive-Easy \u2014 \u043c\u0435\u043d\u044e",
+	}
+	en := map[string]string{
+		"console": "Console",
+		"drive":   "Drive",
+		"exit":    "Exit",
+		"tip":     "TGDrive-Easy - Saved Messages drive",
+	}
+	if lang == "ru" {
+		return ru[key]
+	}
+	return en[key]
+}
+
+func onReady() {
+	lang := currentLanguage()
+	systray.SetIcon(trayIcon())
+	systray.SetTooltip(trayText(lang, "tip"))
+
+	mConsole := systray.AddMenuItem(trayText(lang, "console"), "")
+	mDrive := systray.AddMenuItemCheckbox(trayText(lang, "drive"), "", isMounted())
 	systray.AddSeparator()
-	mExit := systray.AddMenuItem("Exit", "Stop the server and unmount the drive")
+	mExit := systray.AddMenuItem(trayText(lang, "exit"), "")
 
 	go func() {
 		for {

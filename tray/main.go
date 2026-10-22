@@ -25,7 +25,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.2.1"
+	buildVersion = "1.2.2"
 	port         = 4100
 	driveLetter  = "Z:"
 
@@ -73,6 +73,7 @@ var (
 	procTrackPopupMenu    = user32.NewProc("TrackPopupMenu")
 	procDestroyMenu       = user32.NewProc("DestroyMenu")
 	procGetCursorPos      = user32.NewProc("GetCursorPos")
+	procGetUserLang       = kernel32.NewProc("GetUserDefaultUILanguage")
 	procSetForeground     = user32.NewProc("SetForegroundWindow")
 	procPostMessage       = user32.NewProc("PostMessageW")
 	procShellNotifyIcon   = shell32.NewProc("Shell_NotifyIconW")
@@ -409,20 +410,62 @@ func isMounted() bool {
 	return v
 }
 
+func isRussianOS() bool {
+	id, _, _ := procGetUserLang.Call()
+	return uint32(id)&0x3FF == 0x19
+}
+
+func currentLanguage() string {
+	if data, err := os.ReadFile(filepath.Join(dataDir, "settings.json")); err == nil {
+		var cfg struct {
+			Language string `json:"language"`
+		}
+		if json.Unmarshal(data, &cfg) == nil {
+			if cfg.Language == "ru" || cfg.Language == "en" {
+				return cfg.Language
+			}
+		}
+	}
+	if isRussianOS() {
+		return "ru"
+	}
+	return "en"
+}
+
+func trayText(lang, key string) string {
+	ru := map[string]string{
+		"console": "\u041a\u043e\u043d\u0441\u043e\u043b\u044c",
+		"drive":   "\u0414\u0438\u0441\u043a",
+		"exit":    "\u0412\u044b\u0445\u043e\u0434",
+		"tip":     "TGDrive-Easy \u2014 \u043c\u0435\u043d\u044e \u043f\u043e \u043f\u0440\u0430\u0432\u043e\u043c\u0443 \u043a\u043b\u0438\u043a\u0443",
+	}
+	en := map[string]string{
+		"console": "Console",
+		"drive":   "Drive",
+		"exit":    "Exit",
+		"tip":     "TGDrive-Easy - right click for menu",
+	}
+	if lang == "ru" {
+		return ru[key]
+	}
+	return en[key]
+}
+
 func showMenu(hwnd uintptr) {
 	mounted := isMounted()
+	lang := currentLanguage()
 
 	hMenu, _, _ := procCreatePopupMenu.Call()
-	procAppendMenu.Call(hMenu, mfString, idConsole, uintptr(unsafe.Pointer(utf16("Console"))))
+	procAppendMenu.Call(hMenu, mfString, idConsole, uintptr(unsafe.Pointer(utf16(trayText(lang, "console")))))
 
 	diskFlags := uintptr(mfString)
 	if mounted {
 		diskFlags |= mfChecked
 	}
-	procAppendMenu.Call(hMenu, diskFlags, idDisk, uintptr(unsafe.Pointer(utf16("Drive"))))
+	procAppendMenu.Call(hMenu, diskFlags, idDisk, uintptr(unsafe.Pointer(utf16(trayText(lang, "drive")))))
 
 	procAppendMenu.Call(hMenu, mfSeparator, 0, 0)
-	procAppendMenu.Call(hMenu, mfString, idExit, uintptr(unsafe.Pointer(utf16("Exit"))))
+	procAppendMenu.Call(hMenu, mfString, idExit, uintptr(unsafe.Pointer(utf16(trayText(lang, "exit")))))
 
 	var pt point
 	procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
@@ -494,7 +537,7 @@ func addTray(hwnd uintptr) {
 	nid.uFlags = nifMessage | nifIcon | nifTip
 	nid.uCallbackMessage = wmTrayMsg
 	nid.hIcon = hIcon
-	tip, _ := syscall.UTF16FromString(appName + " - right click for menu")
+	tip, _ := syscall.UTF16FromString(trayText(currentLanguage(), "tip"))
 	copy(nid.szTip[:], tip)
 
 	r, _, _ := procShellNotifyIcon.Call(nimAdd, uintptr(unsafe.Pointer(&nid)))
