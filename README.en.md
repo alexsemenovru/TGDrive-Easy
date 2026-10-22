@@ -2,52 +2,72 @@
 
 [Русский](README.md) | [English](README.en.md)
 
-**TGDrive-Easy** is a local Telegram client that shows **Saved Messages** as a Windows network drive (`Z:`) and as a web interface. A single EXE, no installation.
+**TGDrive-Easy** is a local Telegram client that shows **Saved Messages** as a network drive and as a web interface. It runs on Windows, Linux and macOS.
 
-## What it can do
+## Download
 
-- Sign in to Telegram with a phone number, code and 2FA password — no need to register `api_id`/`api_hash` (the public web-client credentials are used).
+All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releases).
+
+| Platform | File | Status |
+|---|---|---|
+| Windows | `TGDrive-Easy.exe` | stable **v1.0.1** |
+| Windows / Linux / macOS | the same files in **v1.2.0-beta.1** | cross-platform test build |
+| Linux | `TGDrive-Easy-x86_64.AppImage` | beta |
+| macOS | `TGDrive-Easy-macos.zip` (contains `.app`) | beta |
+
+## What it does
+
+- Sign in to Telegram with a phone number, code and 2FA password — no need to register `api_id`/`api_hash` (public web-client credentials are used).
 - List files from Saved Messages, download, upload, rename, delete; virtual folders.
-- Network drive over WebDAV: the built-in Windows client or `rclone`.
+- Network drive over WebDAV: the built-in Windows client, GVFS on Linux, Finder on macOS, or `rclone`.
 - No-cache mode: transfer errors are visible immediately instead of "a minute later".
 - If a background upload fails, a `<name>.upload-failed.txt` note with the reason appears in the same folder.
-- Tray icon menu: **Console**, **Drive** (check mark when mounted, click to mount/unmount), **Exit**.
+- Tray menu: **Console**, **Drive** (check mark when mounted, click to mount/unmount), **Exit**.
 - Mount the drive at startup (configurable) and Mount/Unmount buttons in the web console.
-- Start with Windows (autostart), toggled in the web console and off by default.
-- Telegram traffic goes through SOCKS5 or MTProto proxy; the proxy is configured in the web console before and after sign-in, and a `tg://proxy` link can be pasted as-is.
+- Start at login (off by default): registry on Windows, `.desktop` on Linux, a LaunchAgent on macOS.
+- Telegram traffic goes through SOCKS5 or MTProto proxy; configure it in the web console before and after sign-in, and paste a `tg://proxy` link as-is.
 
-## Layout
+The interface is English-only for now; Russian is coming in the next release.
+
+## Windows
+
+1. Download `TGDrive-Easy.exe` and run it — the tray icon appears and drive `Z:` mounts automatically.
+2. Right-click the icon → **Console** → sign in to Telegram.
+
+One-time setup (as administrator) for the built-in Windows WebDAV client:
 
 ```
-app/    Node.js server: WebDAV, Telegram (GramJS), web interface
-tray/   Go launcher: tray icon, menu, embedded Node.js
-tests/  API and settings checks
+HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters
+  BasicAuthLevel       = 2
+  FileSizeLimitInBytes = 4294967295
 ```
 
-## Build
+Data: `%APPDATA%\TGDrive-Easy\data`. Extracted components: `%LOCALAPPDATA%\TGDrive-Easy\runtime`.
 
-Server:
+## Linux
 
-```powershell
-cd app
-npm install
-node server.js
+```bash
+chmod +x TGDrive-Easy-x86_64.AppImage
+./TGDrive-Easy-x86_64.AppImage
 ```
 
-Web interface: http://127.0.0.1:4100
+- Requires `libayatana-appindicator3` (usually present on Ubuntu; otherwise `sudo apt install libayatana-appindicator3-1`).
+- If the AppImage does not start because of FUSE: `./TGDrive-Easy-x86_64.AppImage --appimage-extract-and-run`.
+- The drive is mounted through GVFS and shows up in the file manager; if mounting fails, the app keeps running and opens the console.
+- Data: `~/.local/share/TGDrive-Easy/data`.
 
-EXE (requires Go 1.21+, Node.js 18 and Python with Pillow):
+## macOS
 
-```powershell
-cd tray
-.\build.ps1
-```
+1. Unzip `TGDrive-Easy-macos.zip` and move `TGDrive-Easy.app` to Applications.
+2. First launch: right-click `TGDrive-Easy.app` → **Open** → **Open**. The build is not signed with an Apple Developer ID; alternatively run `xattr -dr com.apple.quarantine TGDrive-Easy.app`.
+3. The icon appears in the **menu bar** (there is no Dock icon — it is a background app). Menu: **Console / Drive / Exit**.
+4. The drive is mounted by Finder as volume `dav`.
 
-The script installs server dependencies, packs `node.exe` and `app.zip`, renders the icon and builds the EXE. If `rsrc` is missing (`go install github.com/akavel/rsrc@latest`), the EXE gets a default icon.
+Data and logs: `~/.local/share/TGDrive-Easy/data` (`app.log`, `tray.log`).
 
 ## Settings
 
-`%APPDATA%\TeleDriveLocal\data\.env` (or `data/.env` when running from source):
+`data/.env` (next to the application data):
 
 ```
 PORT=4100
@@ -58,46 +78,49 @@ DAV_PASS=teledrive
 MOUNT_MODE=webdav
 ```
 
-Auto-mount and proxy parameters are stored in `settings.json` next to it and are changed from the web console (**⚙ Settings**).
+Auto-mount, autostart and proxy settings live in `settings.json` next to it and are changed from the web console (**⚙ Settings**).
 
-## Windows and WebDAV
+## Building from source
 
-The built-in WebDAV client needs a one-time registry change (administrator):
+Server:
 
+```bash
+cd app
+npm install
+node server.js
 ```
-HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters
-  BasicAuthLevel       = 2
-  FileSizeLimitInBytes = 4294967295
+
+Web interface: http://127.0.0.1:4100
+
+Windows EXE (Go 1.21+, Node.js 18, Python with Pillow):
+
+```powershell
+cd tray
+.\build.ps1
 ```
 
-## Linux and macOS
-
-The server and the web UI are cross-platform; Unix has its own tray launcher:
+Unix tray launcher (Go 1.21+, Node.js 18; on Linux also GTK3 and libayatana-appindicator3):
 
 ```bash
 cd unix
 ./build.sh
 ```
 
-Requires Go 1.21+, Node.js 18 and, on Linux, GTK3 plus libayatana-appindicator3.
-
-- Linux: the drive is mounted through GVFS (`gio mount dav://…`), the tray is an AppIndicator.
-- macOS: the drive is mounted through Finder (`mount volume`), the tray is a menu bar item; build it on macOS.
-- If no tray is available (no panel or libraries), the app keeps working headless: opens the console and serves WebDAV.
-- Autostart: `.desktop` on Linux, a LaunchAgent on macOS.
+Packaging: `unix/package-appimage.sh` (Linux) and `unix/package-macos.sh` (macOS). CI builds all three platforms automatically.
 
 ## Limitations
 
-- Telegram: 2 GB per file, 4 GB with Premium; the Windows WebDAV client does not transfer files larger than 4 GB.
-- Saved Messages has no folders — folders are virtual and stored in `data/tree.json`.
+- Telegram: 2 GB per file, 4 GB with Premium; the Windows client does not transfer files over 4 GB.
+- Saved Messages has no folders — they are virtual and stored in `data/tree.json`.
+- Builds are unsigned: SmartScreen on Windows and Gatekeeper on macOS will warn.
 - `data/session.txt` grants full access to the account: never publish it.
-- Public Telegram web-client credentials are used. This is not technically prohibited, but it is a third-party client; for permanent use it is safer to specify your own `api_id`/`api_hash` in `.env`.
+- Public web-client Telegram credentials are used. This works technically, but formally it is a third-party client; for long-term use it is safer to provide your own `api_id`/`api_hash` in `.env`.
 
 ## Inspiration and origin
 
-The project is inspired by [mgilangjanuar/teledrive](https://github.com/mgilangjanuar/teledrive), an open-source Telegram Drive client. The code here was written from scratch, but the idea, the API layout and the approach to Saved Messages grew out of getting to know that project.
+The project is inspired by [mgilangjanuar/teledrive](https://github.com/mgilangjanuar/teledrive), an open-source Telegram Drive client. The code here was written from scratch, but the idea and the approach to Saved Messages grew out of that project.
 
-The project was built entirely with **vibe coding**: a human set the tasks and checked the result, an AI agent wrote the code.
+The whole project is made with **vibe coding**: a human set the tasks and checked the result, an AI agent wrote the code.
 
 ## License
 
