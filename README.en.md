@@ -74,9 +74,11 @@ PORT=4100
 SOCKS_IP=127.0.0.1
 SOCKS_PORT=10808
 DAV_USER=teledrive
-DAV_PASS=teledrive
+DAV_PASS=<generated automatically on first run>
 MOUNT_MODE=webdav
 ```
+
+The default WebDAV password is not used: if `DAV_PASS` is empty or equals `teledrive`, the server generates a random password and stores it in `.env` (only a warning is written to the log, never the password itself). That password is required for manual mounting.
 
 Auto-mount, autostart and proxy settings live in `settings.json` next to it and are changed from the web console (**⚙ Settings**).
 

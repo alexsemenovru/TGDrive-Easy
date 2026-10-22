@@ -29,8 +29,41 @@ const SESSION_FILE = path.join(DATA_DIR, 'session.txt');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 for (const dir of [DATA_DIR, TMP_DIR]) fs.mkdirSync(dir, { recursive: true });
 
-const DAV_USER = process.env.DAV_USER || 'teledrive';
-const DAV_PASS = process.env.DAV_PASS || 'teledrive';
+let DAV_USER = process.env.DAV_USER || 'teledrive';
+let DAV_PASS = process.env.DAV_PASS || '';
+const DAV_INSECURE = process.env.TD_INSECURE_DAV === '1';
+
+// Пароль по умолчанию небезопасен: генерируем случайный и сохраняем в .env.
+function persistEnvCreds(user, pass) {
+  const envFile = path.join(DATA_DIR, '.env');
+  let lines = [];
+  try {
+    lines = fs.readFileSync(envFile, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/);
+  } catch (_) {
+    lines = [];
+  }
+  const out = [];
+  let hasUser = false;
+  let hasPass = false;
+  for (const line of lines) {
+    if (/^\s*DAV_USER\s*=/.test(line)) { out.push(`DAV_USER=${user}`); hasUser = true; }
+    else if (/^\s*DAV_PASS\s*=/.test(line)) { out.push(`DAV_PASS=${pass}`); hasPass = true; }
+    else out.push(line);
+  }
+  if (!hasUser) out.push(`DAV_USER=${user}`);
+  if (!hasPass) out.push(`DAV_PASS=${pass}`);
+  fs.writeFileSync(envFile, out.join('\n') + '\n', 'utf8');
+}
+
+if (!DAV_INSECURE && (!DAV_PASS || DAV_PASS === 'teledrive')) {
+  DAV_PASS = crypto.randomBytes(16).toString('hex');
+  persistEnvCreds(DAV_USER, DAV_PASS);
+  console.warn('[SECURITY] WebDAV password was default or empty: generated a random one.');
+  console.warn(`[SECURITY] DAV_USER=${DAV_USER}; the password is only in .env, not in this log.`);
+  console.warn(`[SECURITY] saved to ${path.join(DATA_DIR, '.env')}`);
+}
+process.env.DAV_USER = DAV_USER;
+process.env.DAV_PASS = DAV_PASS;
 
 const DRIVE = process.env.TD_DRIVE || (process.platform === 'win32' ? 'Z:' : 'TGDrive-Easy');
 const DRIVE_LABEL = (platform.mountLabel && platform.mountLabel()) || DRIVE;
@@ -41,6 +74,9 @@ const PID_FILE = path.join(DATA_DIR, 'server.pid');
 const CONTROL_FILE = path.join(DATA_DIR, 'control.token');
 
 let rcloneProc = null;
+// rclone rc требует аутентификацию даже на localhost.
+const RCLONE_RC_USER = crypto.randomBytes(8).toString('hex');
+const RCLONE_RC_PASS = crypto.randomBytes(16).toString('hex');
 let mounted = false;
 
 // ---------------------------------------------------------------------------
@@ -148,7 +184,7 @@ async function mountDrive(reason = 'startup') {
       rcloneProc = spawn(RCLONE_EXE, [
         'mount', 'td:', DRIVE, '--config', RCLONE_CONF,
         '--vfs-cache-mode', 'writes', '--volname', 'TeleDrive',
-        '--rc', '--rc-no-auth', '--rc-addr', '127.0.0.1:5572',
+        '--rc', '--rc-addr', '127.0.0.1:5572', '--rc-user', RCLONE_RC_USER, '--rc-pass', RCLONE_RC_PASS,
         '--log-file', path.join(DATA_DIR, 'rclone.log'), '--log-level', 'INFO', '--no-console',
       ], { stdio: 'ignore' });
       mounted = true;
@@ -174,7 +210,7 @@ async function unmountDrive() {
   if (!mounted) return false;
   mounted = false;
   if (rcloneProc) {
-    execQuiet(RCLONE_EXE, ['rc', '--rc-addr', '127.0.0.1:5572', 'core/quit']);
+    execQuiet(RCLONE_EXE, ['rc', '--rc-addr', '127.0.0.1:5572', '--user', RCLONE_RC_USER, '--pass', RCLONE_RC_PASS, 'core/quit']);
     try { rcloneProc.kill(); } catch (_) {}
     rcloneProc = null;
   }

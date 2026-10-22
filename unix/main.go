@@ -28,7 +28,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.2.0"
+	buildVersion = "1.2.1"
 	port         = 4100
 )
 
@@ -112,6 +112,17 @@ func extractNode(dst string) error {
 	return fmt.Errorf("node binary not found in archive")
 }
 
+
+// safeTarget защищает распаковку от Zip Slip: путь обязан остаться внутри base.
+func safeTarget(base, name string) (string, error) {
+	cleanBase := filepath.Clean(base)
+	target := filepath.Join(cleanBase, filepath.FromSlash(name))
+	if target != cleanBase && !strings.HasPrefix(target, cleanBase+string(os.PathSeparator)) {
+		return "", fmt.Errorf("illegal file path (Zip Slip attempt): %s", target)
+	}
+	return target, nil
+}
+
 func extractApp() error {
 	data, err := assets.ReadFile("assets/app.zip")
 	if err != nil {
@@ -122,7 +133,10 @@ func extractApp() error {
 		return err
 	}
 	for _, f := range zr.File {
-		target := filepath.Join(runtimeDir, filepath.FromSlash(f.Name))
+		target, err := safeTarget(runtimeDir, f.Name)
+		if err != nil {
+			return err
+		}
 		if f.FileInfo().IsDir() {
 			os.MkdirAll(target, 0o755)
 			continue

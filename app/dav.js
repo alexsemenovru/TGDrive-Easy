@@ -87,7 +87,16 @@ module.exports = function createDavRouter({ getClient, describe, store, dataDir,
     }
   } catch (_) {}
 
-  const locks = new Map();
+  const locks = new Map(); // token -> { path, ts }
+const LOCK_TTL_MS = 60 * 60 * 1000; // 1 час
+
+function cleanupLocks() {
+  const now = Date.now();
+  for (const [token, rec] of locks) {
+    if (now - rec.ts > LOCK_TTL_MS) locks.delete(token);
+  }
+}
+setInterval(cleanupLocks, 10 * 60 * 1000).unref();
   // Загрузки в Telegram выполняем по одной: параллельные sendFile на одном
   // клиенте GramJS зависают без ошибки.
   let uploadQueue = Promise.resolve();
@@ -575,7 +584,8 @@ module.exports = function createDavRouter({ getClient, describe, store, dataDir,
   async function onLock(req, res) {
     const p = normPath(safeDecode(req.path));
     const token = 'opaquelocktoken:' + crypto.randomUUID();
-    locks.set(token, p);
+    locks.set(token, { path: p, ts: Date.now() });
+    cleanupLocks();
     res.status(200)
       .setHeader('Lock-Token', `<${token}>`)
       .setHeader('Content-Type', 'application/xml; charset=utf-8')

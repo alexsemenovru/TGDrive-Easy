@@ -25,7 +25,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.2.0"
+	buildVersion = "1.2.1"
 	port         = 4100
 	driveLetter  = "Z:"
 
@@ -174,6 +174,17 @@ func gunzipTo(data []byte, dst string) error {
 	return err
 }
 
+
+// safeTarget защищает распаковку от Zip Slip: путь обязан остаться внутри base.
+func safeTarget(base, name string) (string, error) {
+	cleanBase := filepath.Clean(base)
+	target := filepath.Join(cleanBase, filepath.FromSlash(name))
+	if target != cleanBase && !strings.HasPrefix(target, cleanBase+string(os.PathSeparator)) {
+		return "", fmt.Errorf("illegal file path (Zip Slip attempt): %s", target)
+	}
+	return target, nil
+}
+
 func extractRuntime() error {
 	stamp := filepath.Join(runtimeDir, "version.txt")
 	if b, err := os.ReadFile(stamp); err == nil && strings.TrimSpace(string(b)) == buildVersion {
@@ -200,8 +211,10 @@ func extractRuntime() error {
 		return err
 	}
 	for _, f := range zr.File {
-		name := filepath.FromSlash(f.Name)
-		target := filepath.Join(runtimeDir, name)
+		target, err := safeTarget(runtimeDir, f.Name)
+		if err != nil {
+			return err
+		}
 		if f.FileInfo().IsDir() {
 			os.MkdirAll(target, 0o755)
 			continue
