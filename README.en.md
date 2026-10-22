@@ -11,7 +11,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 | Platform | File | Status |
 |---|---|---|
 | Windows | `TGDrive-Easy.exe` | stable **v1.0.1** |
-| Windows / Linux / macOS | the same files in **v1.2.0-beta.1** | cross-platform test build |
+| Windows / Linux / macOS | the same files in **v1.2.1-beta.2** | cross-platform test build |
 | Linux | `TGDrive-Easy-x86_64.AppImage` | beta |
 | macOS | `TGDrive-Easy-macos.zip` (contains `.app`) | beta |
 
@@ -109,6 +109,15 @@ cd unix
 ```
 
 Packaging: `unix/package-appimage.sh` (Linux) and `unix/package-macos.sh` (macOS). CI builds all three platforms automatically.
+
+## Security
+
+- The WebDAV password is generated randomly on first run and stored in `.env`; the `teledrive` default is not used.
+- Archive extraction is protected against Zip Slip: every path must stay inside the application directory.
+- rclone RC requires a username and password; `--rc-no-auth` is not used.
+- WebDAV locks (`LOCK`) expire by TTL, so the lock map cannot grow forever.
+
+See [SECURITY.md](SECURITY.md) for details.
 
 ## Limitations
 
