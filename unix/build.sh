@@ -55,6 +55,9 @@ if [ ! -f "$ASSETS/icon.png" ]; then
   echo "assets/icon.png is required"; exit 1
 fi
 
+echo "3b/4 go mod download"
+go mod download
+
 echo "4/4 go build"
 cd "$ROOT"
 CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o "$DIST/tgdrive-easy" .
