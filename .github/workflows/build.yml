@@ -74,11 +74,11 @@ jobs:
       - name: package .app
         run: |
           bash unix/package-macos.sh
-          mv unix/dist/TGDrive-Easy-macos.zip unix/dist/TGDrive-Easy-macos-beta.zip
+          mv unix/dist/TGDrive-Easy-macos.zip unix/dist/TGDrive-Easy-macos-unverified.zip
       - uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: unix/dist/TGDrive-Easy-macos-beta.zip
+          path: unix/dist/TGDrive-Easy-macos-unverified.zip
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -101,5 +101,5 @@ jobs:
           files: |
             artifacts/windows-exe/TGDrive-Easy.exe
             artifacts/linux-appimage/TGDrive-Easy-x86_64.AppImage
-            artifacts/macos-app/TGDrive-Easy-macos-beta.zip
+            artifacts/macos-app/TGDrive-Easy-macos-unverified.zip
             artifacts/SHA256SUMS.txt
