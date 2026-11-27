@@ -10,7 +10,7 @@
 
 | Платформа | Файл | Статус |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | стабильная **v1.2.7** |
+| Windows | `TGDrive-Easy.exe` | стабильная **v1.2.9** |
 | Linux | `TGDrive-Easy-x86_64-beta.AppImage` | **beta** — сборка не проверялась на реальном Linux |
 | macOS | `TGDrive-Easy-macos-beta.zip` (внутри `.app`) | **beta** — сборка не проверялась на реальном Mac |
 
@@ -66,6 +66,17 @@ chmod +x TGDrive-Easy-x86_64.AppImage
 4. Диск подключается через Finder как том `dav`.
 
 Данные и журналы: `~/.local/share/TGDrive-Easy/data` (`app.log`, `tray.log`).
+
+## Свои ключи API
+
+Для постоянной работы получите собственные ключи на [my.telegram.org](https://my.telegram.org) (API development tools) и добавьте их в `data/.env`:
+
+```
+TG_API_ID=ваш_id
+TG_API_HASH=ваш_hash
+```
+
+С ними приложение работает от вашего имени, а в «Активных сессиях» Telegram отображается как `TGDrive-Easy` с текущей версией. Без своих ключей используются публичные ключи веб-клиента — это работает, но не рекомендуется: Telegram не одобряет такое использование сторонними приложениями.
 
 ## Настройки
 

@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const os = require('os');
 const { once } = require('events');
 const { execFile, execFileSync, spawn } = require('child_process');
 const platform = require('./platform');
@@ -307,10 +308,16 @@ let me = null;
 let login = null; // { phoneNumber, phoneCodeHash }
 
 async function newClient(session = '') {
+  const lang = settings.language === 'ru' ? 'ru' : 'en';
   const c = new TelegramClient(new StringSession(session), API_ID, API_HASH, {
     connectionRetries: 3,
     proxy: proxyOptions(),
     useWSS: false,
+    deviceModel: process.env.TD_DEVICE_MODEL || 'TGDrive-Easy',
+    systemVersion: process.env.TD_SYSTEM_VERSION || (os.type() + ' ' + os.release()),
+    appVersion: APP_VERSION,
+    langCode: lang,
+    systemLangCode: lang,
   });
   await c.connect();
   return c;
@@ -430,7 +437,24 @@ app.get('/', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // Сетевой диск: WebDAV поверх «Избранного»
-const store = require('./store')({ getClient: ensureClient, describe, dataDir: DATA_DIR, log: (m) => console.error(m) });
+function onSessionInvalid(e) {
+  console.error('session is no longer valid:', e && e.message ? e.message : e);
+  try { sessionStore.clear(); } catch (_) {}
+  me = null;
+  login = null;
+  if (client) {
+    try { client.disconnect(); } catch (_) {}
+    client = null;
+  }
+}
+
+const store = require('./store')({
+  getClient: ensureClient,
+  describe,
+  dataDir: DATA_DIR,
+  log: (m) => console.error(m),
+  onAuthError: onSessionInvalid,
+});
 
 function addToIndex(info) {
   if (info && info.size > 0) store.add(info);
@@ -774,6 +798,10 @@ app.listen(PORT, '127.0.0.1', () => {
       console.log('session restored');
     } catch (e) {
       console.error('session restore failed:', errText(e));
+      // Сессия привязана к api_id: после смены ключей её нужно создать заново.
+      if (String(errText(e)).includes('AUTH_KEY_UNREGISTERED') || String(errText(e)).includes('API_ID')) {
+        try { sessionStore.clear(); console.log('session was cleared after api_id change'); } catch (_) {}
+      }
       me = null;
     }
   }

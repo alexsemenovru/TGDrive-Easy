@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-module.exports = function createStore({ getClient, describe, dataDir, log }) {
+module.exports = function createStore({ getClient, describe, dataDir, log, onAuthError }) {
   const INDEX_FILE = path.join(dataDir, 'index.json');
   const TTL = 15 * 60 * 1000;
   let items = [];
@@ -63,7 +63,11 @@ module.exports = function createStore({ getClient, describe, dataDir, log }) {
       try {
         await fullSync();
       } catch (e) {
-        log && log('index: sync failed: ' + (e.message || e));
+        const msg = String(e && e.message ? e.message : e);
+        log && log('index: sync failed: ' + msg);
+        if (onAuthError && /AUTH_KEY_UNREGISTERED|SESSION_REVOKED|AUTH_KEY_DUPLICATED|USER_DEACTIVATED/.test(msg)) {
+          try { onAuthError(e); } catch (_) {}
+        }
       } finally {
         syncing = null;
       }

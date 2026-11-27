@@ -10,7 +10,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 
 | Platform | File | Status |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | stable **v1.2.7** |
+| Windows | `TGDrive-Easy.exe` | stable **v1.2.9** |
 | Linux | `TGDrive-Easy-x86_64-beta.AppImage` | **beta** — not tested on real Linux |
 | macOS | `TGDrive-Easy-macos-beta.zip` (contains `.app`) | **beta** — not tested on a real Mac |
 
@@ -66,6 +66,17 @@ chmod +x TGDrive-Easy-x86_64.AppImage
 4. The drive is mounted by Finder as volume `dav`.
 
 Data and logs: `~/.local/share/TGDrive-Easy/data` (`app.log`, `tray.log`).
+
+## Your own API keys
+
+For long-term use, get your own credentials at [my.telegram.org](https://my.telegram.org) (API development tools) and put them into `data/.env`:
+
+```
+TG_API_ID=your_id
+TG_API_HASH=your_hash
+```
+
+With your own keys the app runs under your account and appears in Telegram's active sessions as `TGDrive-Easy` with the current version. Without them the public web-client credentials are used: it works, but is not recommended — Telegram does not approve that use for third-party apps.
 
 ## Settings
 
