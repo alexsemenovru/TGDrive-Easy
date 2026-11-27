@@ -10,11 +10,11 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 
 | Platform | File | Status |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | stable **v1.2.9** |
-| Linux | `TGDrive-Easy-x86_64-beta.AppImage` | **beta** — not tested on real Linux |
+| Windows | `TGDrive-Easy.exe` | stable **v1.3.0** |
+| Linux | `TGDrive-Easy-x86_64.AppImage` | stable — tested on Kubuntu, Xubuntu and Ubuntu Classic |
 | macOS | `TGDrive-Easy-macos-beta.zip` (contains `.app`) | **beta** — not tested on a real Mac |
 
-The Windows build is a full release. Linux and macOS are marked `beta` only because we have no devices to test them on: the code and builds are ready, but the first run on real hardware may reveal rough edges. If something goes wrong, please send `app.log` and `tray.log`.
+Windows and Linux are full releases. macOS is marked `beta` only because we have no Mac to test it on: the code and builds are ready, but the first run on real hardware may reveal rough edges. If something goes wrong, please send `app.log` and `tray.log`.
 
 ## What it does
 
