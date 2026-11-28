@@ -37,7 +37,7 @@ Windows and Linux are full releases. macOS is marked unverified only because we 
 1. Download `TGDrive-Easy.exe` and run it — the tray icon appears and the network drive mounts automatically.
 2. Right-click the icon → **Console** → sign in to Telegram.
 
-One-time setup (as administrator) for the built-in Windows WebDAV client:
+On first launch the app checks the WebDAV settings and, if needed, offers to apply them via UAC (the `WebClient` service is restarted). To configure manually instead, use:
 
 ```
 HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters

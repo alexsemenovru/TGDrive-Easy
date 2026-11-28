@@ -25,7 +25,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.3.2"
+	buildVersion = "1.3.3"
 	port         = 4100
 	driveLetter  = "Z:"
 
@@ -566,6 +566,16 @@ func main() {
 	// the window and the message loop must live on one OS thread
 	runtime.LockOSThread()
 
+	if len(os.Args) > 1 && os.Args[1] == "--setup-webdav" {
+		dataDir = filepath.Join(roamingAppData(), "TGDrive-Easy", "data")
+		if err := setupWebdav(); err != nil {
+			logf("webdav setup failed: %v", err)
+			os.Exit(1)
+		}
+		logf("webdav setup applied")
+		os.Exit(0)
+	}
+
 	// second instance: just open the console
 	hMutex, _, mutexErr := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(utf16("Global\\TGDriveEasyTray"))))
 	if hMutex != 0 {
@@ -590,6 +600,7 @@ func main() {
 		return
 	}
 	migrateData()
+	maybeSetupWebdav()
 
 	if err := startNode(); err != nil {
 		msgBox("Could not start the server: " + err.Error())
@@ -652,6 +663,105 @@ func logf(format string, args ...any) {
 	}
 	defer f.Close()
 	fmt.Fprintf(f, time.Now().Format("2006-01-02 15:04:05 ")+format+"\n", args...)
+}
+
+const webdavParamsKey = `HKLM\SYSTEM\CurrentControlSet\Services\WebClient\Parameters`
+
+func runOutput(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+func regDword(name string) (uint32, bool) {
+	out, err := runOutput("reg.exe", "query", webdavParamsKey, "/v", name)
+	if err != nil {
+		return 0, false
+	}
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && strings.EqualFold(fields[0], name) {
+			var v uint64
+			if _, err := fmt.Sscanf(strings.TrimPrefix(strings.ToLower(fields[2]), "0x"), "%x", &v); err == nil {
+				return uint32(v), true
+			}
+		}
+	}
+	return 0, false
+}
+
+func webdavReady() bool {
+	auth, okAuth := regDword("BasicAuthLevel")
+	size, okSize := regDword("FileSizeLimitInBytes")
+	return okAuth && okSize && auth >= 2 && size >= 4294967295
+}
+
+func setupWebdav() error {
+	if _, err := runOutput("reg.exe", "add", webdavParamsKey, "/v", "BasicAuthLevel", "/t", "REG_DWORD", "/d", "2", "/f"); err != nil {
+		return err
+	}
+	if _, err := runOutput("reg.exe", "add", webdavParamsKey, "/v", "FileSizeLimitInBytes", "/t", "REG_DWORD", "/d", "4294967295", "/f"); err != nil {
+		return err
+	}
+	runOutput("sc.exe", "stop", "WebClient")
+	time.Sleep(2 * time.Second)
+	if _, err := runOutput("sc.exe", "start", "WebClient"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func msgBoxYesNo(text string) bool {
+	procMessageBox := user32.NewProc("MessageBoxW")
+	res, _, _ := procMessageBox.Call(0, uintptr(unsafe.Pointer(utf16(text))),
+		uintptr(unsafe.Pointer(utf16(appName))), 0x24)
+	return res == 6
+}
+
+func maybeSetupWebdav() {
+	if webdavReady() {
+		return
+	}
+	cfg := struct {
+		AutoMount bool   `json:"autoMount"`
+		Mode      string `json:"mode"`
+	}{AutoMount: true}
+	if data, err := os.ReadFile(filepath.Join(dataDir, "settings.json")); err == nil {
+		_ = json.Unmarshal(data, &cfg)
+	}
+	if !cfg.AutoMount || cfg.Mode == "rclone" {
+		return
+	}
+	declined := filepath.Join(dataDir, "webdav-setup-declined")
+	if _, err := os.Stat(declined); err == nil {
+		return
+	}
+	var text string
+	if currentLanguage() == "ru" {
+		text = "\u0414\u043b\u044f \u043c\u043e\u043d\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0434\u0438\u0441\u043a\u0430 Windows \u043d\u0443\u0436\u043d\u0430 \u043e\u0434\u043d\u043e\u0440\u0430\u0437\u043e\u0432\u0430\u044f \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0430 WebDAV.\n\n\u0411\u0443\u0434\u0443\u0442 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u044b BasicAuthLevel \u0438 FileSizeLimitInBytes, \u0437\u0430\u0442\u0435\u043c \u043f\u0435\u0440\u0435\u0437\u0430\u043f\u0443\u0449\u0435\u043d\u0430 \u0441\u043b\u0443\u0436\u0431\u0430 WebClient. \u041f\u043e\u0442\u0440\u0435\u0431\u0443\u044e\u0442\u0441\u044f \u043f\u0440\u0430\u0432\u0430 \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440\u0430.\n\n\u041f\u0440\u0438\u043c\u0435\u043d\u0438\u0442\u044c \u0441\u0435\u0439\u0447\u0430\u0441?"
+	} else {
+		text = "Windows needs a one-time WebDAV setup to mount the drive.\n\nBasicAuthLevel and FileSizeLimitInBytes will be changed, then the WebClient service restarted. Administrator rights are required.\n\nApply now?"
+	}
+	if !msgBoxYesNo(text) {
+		_ = os.WriteFile(declined, []byte("1"), 0o644)
+		return
+	}
+	exe, _ := os.Executable()
+	procShellExecute.Call(0, uintptr(unsafe.Pointer(utf16("runas"))),
+		uintptr(unsafe.Pointer(utf16(exe))), uintptr(unsafe.Pointer(utf16("--setup-webdav"))), 0, 0)
+	for i := 0; i < 30; i++ {
+		time.Sleep(time.Second)
+		if webdavReady() {
+			logf("webdav configured")
+			return
+		}
+	}
+	if currentLanguage() == "ru" {
+		msgBox("\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0430 WebDAV \u043d\u0435 \u043f\u0440\u0438\u043c\u0435\u043d\u0438\u043b\u0430\u0441\u044c. \u041f\u0440\u0438\u043c\u0435\u043d\u0438\u0442\u0435 \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u044b \u0440\u0435\u0435\u0441\u0442\u0440\u0430 \u0432\u0440\u0443\u0447\u043d\u0443\u044e \u0438\u043b\u0438 \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u0435 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u043e\u0442 \u0438\u043c\u0435\u043d\u0438 \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440\u0430.")
+	} else {
+		msgBox("WebDAV setup was not applied. Apply the registry values manually or run the app as administrator.")
+	}
 }
 
 func msgBox(text string) {	procMessageBox := user32.NewProc("MessageBoxW")
