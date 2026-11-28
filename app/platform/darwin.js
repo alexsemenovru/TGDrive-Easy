@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { run } = require('./common');
+const { spawn } = require('child_process');
 
 const AGENT = path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.tgdrive.easy.plist');
 const LABEL = 'com.tgdrive.easy';
@@ -37,6 +38,16 @@ module.exports = {
     if (res.ok) return { ok: true };
     res = await run('diskutil', ['unmount', VOLUME], 20000);
     return { ok: res.ok };
+  },
+
+  revealDrive() {
+    try {
+      const child = spawn('open', ['/Volumes/dav'], { detached: true, stdio: 'ignore' });
+      child.unref();
+      return true;
+    } catch (_) {
+      return false;
+    }
   },
 
   async setAutostart(enabled, { exePath }) {

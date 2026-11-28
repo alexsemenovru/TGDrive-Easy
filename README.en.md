@@ -10,7 +10,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 
 | Platform | File | Status |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | stable **v1.3.0** |
+| Windows | `TGDrive-Easy.exe` | stable **v1.3.1** |
 | Linux | `TGDrive-Easy-x86_64.AppImage` | stable — tested on Kubuntu, Xubuntu and Ubuntu Classic |
 | macOS | `TGDrive-Easy-macos-unverified.zip` (contains `.app`) | **unverified** — there was no Mac to run it on |
 
@@ -25,6 +25,7 @@ Windows and Linux are full releases. macOS is marked unverified only because we 
 - If a background upload fails, a `<name>.upload-failed.txt` note with the reason appears in the same folder.
 - Tray menu: **Console**, **Drive** (check mark when mounted, click to mount/unmount), **Exit**.
 - Mount the drive at startup (configurable) and Mount/Unmount buttons in the web console.
+- After a successful sign-in the file manager opens on the drive (Explorer on Windows);
 - Start at login (off by default): registry on Windows, `.desktop` on Linux, a LaunchAgent on macOS.
 - update check: the console compares its version with the latest GitHub release, shows a banner with a link and a "Check for updates" button;
 - Telegram traffic goes through SOCKS5 or MTProto proxy; configure it in the web console before and after sign-in, and paste a `tg://proxy` link as-is.
@@ -33,7 +34,7 @@ Windows and Linux are full releases. macOS is marked unverified only because we 
 
 ## Windows
 
-1. Download `TGDrive-Easy.exe` and run it — the tray icon appears and drive `Z:` mounts automatically.
+1. Download `TGDrive-Easy.exe` and run it — the tray icon appears and the network drive mounts automatically.
 2. Right-click the icon → **Console** → sign in to Telegram.
 
 One-time setup (as administrator) for the built-in Windows WebDAV client:

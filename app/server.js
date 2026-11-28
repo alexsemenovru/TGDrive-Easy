@@ -66,7 +66,27 @@ if (!DAV_INSECURE && (!DAV_PASS || DAV_PASS === 'teledrive')) {
 process.env.DAV_USER = DAV_USER;
 process.env.DAV_PASS = DAV_PASS;
 
-const DRIVE = process.env.TD_DRIVE || (process.platform === 'win32' ? 'Z:' : 'TGDrive-Easy');
+const FORBIDDEN_DRIVES = new Set(['Z', 'O', 'V']);
+
+function driveIsBusy(letter) {
+  try { return fs.existsSync(letter + ':\\'); } catch (_) { return true; }
+}
+
+function pickDrive() {
+  if (process.platform !== 'win32') return process.env.TD_DRIVE || 'TGDrive-Easy';
+  const requested = String(process.env.TD_DRIVE || 'T').toUpperCase().replace(':', '').trim();
+  const order = [];
+  if (/^[A-Z]$/.test(requested) && !FORBIDDEN_DRIVES.has(requested)) order.push(requested);
+  for (const ch of 'TUVWXYDEFGHIJKLMNPQRS') {
+    if (!FORBIDDEN_DRIVES.has(ch) && !order.includes(ch)) order.push(ch);
+  }
+  for (const ch of order) {
+    if (!driveIsBusy(ch)) return ch + ':';
+  }
+  return 'T:';
+}
+
+const DRIVE = pickDrive();
 const DRIVE_LABEL = (platform.mountLabel && platform.mountLabel()) || DRIVE;
 const MOUNT_MODE = (process.env.MOUNT_MODE || 'webdav').toLowerCase();
 const RCLONE_EXE = process.env.RCLONE_EXE || 'C:\\teledrive-stack\\rclone\\rclone-v1.75.2-windows-amd64\\rclone.exe';
@@ -264,6 +284,15 @@ async function mountDrive(reason = 'startup') {
   }
   console.log(`drive mount failed: ${res.error || 'unknown error'}`);
   return false;
+}
+
+async function revealDriveAfterLogin() {
+  try {
+    if (!mounted) await mountDrive('after login');
+    if (mounted && platform.revealDrive) platform.revealDrive({ drive: DRIVE, port: PORT });
+  } catch (e) {
+    console.log('reveal drive failed:', e.message);
+  }
 }
 
 async function unmountDrive() {
@@ -628,6 +657,7 @@ app.post('/api/auth/sign-in', guard, async (req, res) => {
     await refreshMe();
     login = null;
     res.json({ ok: true, me });
+    setTimeout(() => { revealDriveAfterLogin(); }, 400);
   } catch (e) {
     if (e && e.errorMessage === 'SESSION_PASSWORD_NEEDED') {
       let hint = '';
@@ -775,11 +805,16 @@ app.listen(PORT, '127.0.0.1', () => {
     fs.writeFileSync(PID_FILE, String(process.pid), 'utf8');
     fs.writeFileSync(CONTROL_FILE, CONTROL_TOKEN, 'utf8');
   } catch (_) {}
-  if (settings.autoMount) {
-    mountDrive('startup');
-  } else {
-    console.log('auto-mount is disabled');
-  }
+  (async () => {
+    if (platform.cleanupLegacy) {
+      try { await platform.cleanupLegacy({ port: PORT }); } catch (_) {}
+    }
+    if (settings.autoMount) {
+      await mountDrive('startup');
+    } else {
+      console.log('auto-mount is disabled');
+    }
+  })();
   if (settings.autoStart) {
     applyAutoStart(true)
       .then((r) => console.log(r.ok ? 'autostart entry refreshed' : `autostart entry failed: ${r.error}`))

@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { run, runSync } = require('./common');
+const { spawn } = require('child_process');
 
 const DESKTOP_FILE = path.join(os.homedir(), '.config', 'autostart', 'tgdrive-easy.desktop');
 
@@ -37,6 +38,19 @@ module.exports = {
   async unmount({ port }) {
     const res = await run('gio', ['mount', '-u', `dav://localhost:${port}/dav`], 20000);
     return { ok: res.ok };
+  },
+
+  revealDrive({ port }) {
+    try {
+      const base = '/run/user/' + (typeof process.getuid === 'function' ? process.getuid() : 1000) +
+        '/gvfs/dav:host=localhost,port=' + port + '/';
+      const target = fs.existsSync(base) ? base : 'dav://localhost:' + port + '/dav';
+      const child = spawn('xdg-open', [target], { detached: true, stdio: 'ignore' });
+      child.unref();
+      return true;
+    } catch (_) {
+      return false;
+    }
   },
 
   async setAutostart(enabled, { exePath }) {
