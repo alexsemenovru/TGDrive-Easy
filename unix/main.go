@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -73,8 +74,18 @@ func gunzipTo(data []byte, dst string) error {
 }
 
 // Распаковывает node.tar.gz (внутри bin/node) в runtime/node.
+func nodeAsset() string {
+	if runtime.GOOS == "darwin" {
+		if runtime.GOARCH == "arm64" {
+			return "assets/node-arm64.tar.gz"
+		}
+		return "assets/node-x64.tar.gz"
+	}
+	return "assets/node.tar.gz"
+}
+
 func extractNode(dst string) error {
-	data, err := assets.ReadFile("assets/node.tar.gz")
+	data, err := assets.ReadFile(nodeAsset())
 	if err != nil {
 		return err
 	}

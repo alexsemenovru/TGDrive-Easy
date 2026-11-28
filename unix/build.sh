@@ -25,11 +25,19 @@ esac
 
 mkdir -p "$ASSETS" "$DIST"
 
-echo "1/4 node v$NODE_VERSION ($NOS-$NARCH)"
+echo "1/4 node v$NODE_VERSION ($NOS)"
 TMP="$(mktemp -d)"
-curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-$NOS-$NARCH.tar.gz" -o "$TMP/node.tar.gz"
-tar -xzf "$TMP/node.tar.gz" -C "$TMP" --strip-components=1 "node-v$NODE_VERSION-$NOS-$NARCH/bin/node"
-tar -czf "$ASSETS/node.tar.gz" -C "$TMP" bin/node
+if [ "$OS" = "darwin" ]; then
+  for a in arm64 x64; do
+    curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-$a.tar.gz" -o "$TMP/node-$a.tar.gz"
+    tar -xzf "$TMP/node-$a.tar.gz" -C "$TMP" --strip-components=1 "node-v$NODE_VERSION-darwin-$a/bin/node"
+    tar -czf "$ASSETS/node-$a.tar.gz" -C "$TMP" bin/node
+  done
+else
+  curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-$NOS-$NARCH.tar.gz" -o "$TMP/node.tar.gz"
+  tar -xzf "$TMP/node.tar.gz" -C "$TMP" --strip-components=1 "node-v$NODE_VERSION-$NOS-$NARCH/bin/node"
+  tar -czf "$ASSETS/node.tar.gz" -C "$TMP" bin/node
+fi
 rm -rf "$TMP"
 
 echo "2/4 app.zip"
@@ -39,7 +47,7 @@ fi
 python3 - "$APP_SRC" "$ASSETS/app.zip" <<'PY'
 import os, sys, zipfile
 src, dst = sys.argv[1], sys.argv[2]
-files = ["server.js", "dav.js", "store.js", "session.js", "package.json"]
+files = ["server.js", "dav.js", "store.js", "session.js", "api-config.json", "package.json"]
 with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
     for f in files:
         z.write(os.path.join(src, f), f)
@@ -57,7 +65,18 @@ fi
 
 echo "4/4 go build"
 cd "$ROOT"
-CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o "$DIST/tgdrive-easy" .
+if [ "$OS" = "darwin" ]; then
+  export MACOSX_DEPLOYMENT_TARGET=11.0
+  export CGO_CFLAGS="-mmacosx-version-min=11.0"
+  export CGO_LDFLAGS="-mmacosx-version-min=11.0"
+  CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o "$DIST/tgdrive-easy-arm64" .
+  CGO_ENABLED=1 GOARCH=amd64 CC="clang -arch x86_64" go build -trimpath -ldflags "-s -w" -o "$DIST/tgdrive-easy-x64" .
+  lipo -create -output "$DIST/tgdrive-easy" "$DIST/tgdrive-easy-arm64" "$DIST/tgdrive-easy-x64"
+  rm -f "$DIST/tgdrive-easy-arm64" "$DIST/tgdrive-easy-x64"
+  lipo -info "$DIST/tgdrive-easy"
+else
+  CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o "$DIST/tgdrive-easy" .
+fi
 
 cat > "$DIST/tgdrive-easy.sh" <<'SH'
 #!/usr/bin/env bash
