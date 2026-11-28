@@ -25,7 +25,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.3.3"
+	buildVersion = "1.4.0"
 	port         = 4100
 	driveLetter  = "Z:"
 
@@ -610,6 +610,13 @@ func main() {
 		msgBox("The server did not start within 90 seconds. See the log: " + filepath.Join(dataDir, "app.log"))
 		cleanup()
 		return
+	}
+
+	// Без авторизации не сидим молча в трее — сразу показываем консоль.
+	if st, err := control("GET", "/api/app/status"); err == nil {
+		if auth, ok := st["authorized"].(bool); ok && !auth {
+			openConsole()
+		}
 	}
 
 	mod, _, _ := procGetModuleHandle.Call(0)

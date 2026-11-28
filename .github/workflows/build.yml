@@ -14,6 +14,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
+      - name: api keys
+        shell: bash
+        env:
+          TG_ID: ${{ secrets.TG_API_ID }}
+          TG_HASH: ${{ secrets.TG_API_HASH }}
+        run: printf '{"apiId":%s,"apiHash":"%s"}' "${TG_ID:-0}" "${TG_HASH:-}" > app/api-config.json
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
@@ -39,6 +45,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
+      - name: api keys
+        shell: bash
+        env:
+          TG_ID: ${{ secrets.TG_API_ID }}
+          TG_HASH: ${{ secrets.TG_API_HASH }}
+        run: printf '{"apiId":%s,"apiHash":"%s"}' "${TG_ID:-0}" "${TG_HASH:-}" > app/api-config.json
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
@@ -64,6 +76,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
+      - name: api keys
+        shell: bash
+        env:
+          TG_ID: ${{ secrets.TG_API_ID }}
+          TG_HASH: ${{ secrets.TG_API_HASH }}
+        run: printf '{"apiId":%s,"apiHash":"%s"}' "${TG_ID:-0}" "${TG_HASH:-}" > app/api-config.json
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'

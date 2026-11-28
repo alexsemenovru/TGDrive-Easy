@@ -22,8 +22,15 @@ require('dotenv').config({ path: path.join(DATA_DIR, '.env') });
 const PORT = Number(process.env.PORT || 4100);
 // Публичные учётные данные веб-клиента Telegram (те же, с которыми работает
 // web.telegram.org). Регистрация приложения в my.telegram.org не требуется.
-const API_ID = Number(process.env.TG_API_ID || 2040);
-const API_HASH = process.env.TG_API_HASH || 'b18441a1ff607e10a989891a5462e627';
+// Ключи проекта вшиваются в сборку (api-config.json), но .env может их переопределить.
+let BUNDLED_API = {};
+try {
+  BUNDLED_API = JSON.parse(fs.readFileSync(path.join(__dirname, 'api-config.json'), 'utf8'));
+} catch (_) {
+  BUNDLED_API = {};
+}
+const API_ID = Number(process.env.TG_API_ID || BUNDLED_API.apiId || 2040);
+const API_HASH = process.env.TG_API_HASH || BUNDLED_API.apiHash || 'b18441a1ff607e10a989891a5462e627';
 
 const TMP_DIR = path.join(DATA_DIR, 'tmp');
 const sessionStore = require('./session');
@@ -95,6 +102,7 @@ const PID_FILE = path.join(DATA_DIR, 'server.pid');
 const CONTROL_FILE = path.join(DATA_DIR, 'control.token');
 
 let rcloneProc = null;
+let lastMountError = '';
 // rclone rc требует аутентификацию даже на localhost.
 const RCLONE_RC_USER = crypto.randomBytes(8).toString('hex');
 const RCLONE_RC_PASS = crypto.randomBytes(16).toString('hex');
@@ -278,11 +286,13 @@ async function mountDrive(reason = 'startup') {
   const res = await platform.mount({ drive: DRIVE, port: PORT, user: DAV_USER, pass: DAV_PASS });
   if (res.ok) {
     mounted = true;
+    lastMountError = '';
     console.log(`drive ${DRIVE_LABEL} mounted (${reason})`);
     if (process.platform === 'win32') warmDrive();
     return true;
   }
-  console.log(`drive mount failed: ${res.error || 'unknown error'}`);
+  lastMountError = res.error || 'unknown error';
+  console.log(`drive mount failed: ${lastMountError}`);
   return false;
 }
 
@@ -371,6 +381,18 @@ async function refreshMe() {
     me = null;
     return null;
   }
+}
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const guard = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, guard]).finally(() => clearTimeout(timer));
+}
+
+function looksLikeNetworkError(text) {
+  return /TIMEOUT|ETIMEDOUT|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|ECONNRESET|SOCKS|proxy|connect failed/i.test(String(text || ''));
 }
 
 function errText(e) {
@@ -509,14 +531,19 @@ app.use('/dav', require('./dav')({
 
 // --- состояние и настройки ---
 app.get('/api/state', guard, async (req, res) => {
-  if (!me) await refreshMe();
-  res.json({
+  try {
+    if (!me) await withTimeout(refreshMe(), 9000, 'Telegram is unreachable — check the proxy');
+    res.json({
     authorized: !!me,
     me: me ? { id: String(me.id), name: [me.firstName, me.lastName].filter(Boolean).join(' '), username: me.username || null } : null,
     mounted,
     autoMount: settings.autoMount,
-    proxy: settings.proxy,
-  });
+      proxy: settings.proxy,
+    });
+  } catch (e) {
+    const msg = errText(e);
+    res.status(503).json({ error: msg, proxyHint: looksLikeNetworkError(msg) });
+  }
 });
 
 function resolveLanguage(req) {
@@ -607,7 +634,7 @@ app.post('/api/settings/proxy', guard, async (req, res) => {
 
 app.post('/api/mount', guard, async (req, res) => {
   const ok = await mountDrive('web');
-  res.json({ ok, mounted });
+  res.json({ ok, mounted, error: ok ? '' : lastMountError });
 });
 
 app.post('/api/unmount', guard, (req, res) => {
@@ -622,12 +649,12 @@ app.post('/api/app/exit', controlGuard, (req, res) => {
 });
 
 app.get('/api/app/status', controlGuard, (req, res) => {
-  res.json({ mounted, autoMount: settings.autoMount, mode: MOUNT_MODE, drive: DRIVE });
+  res.json({ mounted, autoMount: settings.autoMount, mode: MOUNT_MODE, drive: DRIVE, authorized: !!me });
 });
 
 app.post('/api/app/mount', controlGuard, async (req, res) => {
   const ok = await mountDrive('tray');
-  res.json({ ok, mounted });
+  res.json({ ok, mounted, error: ok ? '' : lastMountError });
 });
 
 app.post('/api/app/unmount', controlGuard, (req, res) => {
@@ -641,11 +668,12 @@ app.post('/api/auth/send-code', guard, async (req, res) => {
   if (!phone) return res.status(400).json({ error: 'phone required' });
   try {
     const c = await ensureClient();
-    const out = await c.sendCode({ apiId: API_ID, apiHash: API_HASH }, phone);
+    const out = await withTimeout(c.sendCode({ apiId: API_ID, apiHash: API_HASH }, phone), 25000, 'Telegram is unreachable — check the proxy');
     login = { phoneNumber: phone, phoneCodeHash: out.phoneCodeHash };
     res.json({ ok: true, isCodeViaApp: !!out.isCodeViaApp });
   } catch (e) {
-    res.status(400).json({ error: errText(e) });
+    const msg = errText(e);
+    res.status(400).json({ error: msg, proxyHint: looksLikeNetworkError(msg) });
   }
 });
 
@@ -653,15 +681,16 @@ app.post('/api/auth/sign-in', guard, async (req, res) => {
   const code = String((req.body && req.body.code) || '').trim();
   if (!login) return res.status(400).json({ error: 'Request a code first' });
   try {
-    await client.invoke(new Api.auth.SignIn({
+    await withTimeout(client.invoke(new Api.auth.SignIn({
       phoneNumber: login.phoneNumber,
       phoneCodeHash: login.phoneCodeHash,
       phoneCode: code,
-    }));
+    })), 25000, 'Telegram is unreachable — check the proxy');
     await saveSession();
     await refreshMe();
     login = null;
     res.json({ ok: true, me });
+    store.refresh(true).catch(() => {});
     setTimeout(() => { revealDriveAfterLogin(); }, 400);
   } catch (e) {
     if (e && e.errorMessage === 'SESSION_PASSWORD_NEEDED') {
@@ -672,23 +701,26 @@ app.post('/api/auth/sign-in', guard, async (req, res) => {
       } catch (_) {}
       return res.json({ needPassword: true, hint });
     }
-    res.status(400).json({ error: errText(e) });
+    const msg = errText(e);
+    res.status(400).json({ error: msg, proxyHint: looksLikeNetworkError(msg) });
   }
 });
 
 app.post('/api/auth/password', guard, async (req, res) => {
   const password = String((req.body && req.body.password) || '');
   try {
-    await client.signInWithPassword(
+    await withTimeout(client.signInWithPassword(
       { apiId: API_ID, apiHash: API_HASH },
       { password: async () => password, onError: (e) => { throw e; } }
-    );
+    ), 20000, 'Telegram is unreachable — check the proxy');
     await saveSession();
     await refreshMe();
     login = null;
     res.json({ ok: true, me });
+    store.refresh(true).catch(() => {});
   } catch (e) {
-    res.status(400).json({ error: errText(e) });
+    const msg = errText(e);
+    res.status(400).json({ error: msg, proxyHint: looksLikeNetworkError(msg) });
   }
 });
 
@@ -705,7 +737,7 @@ app.post('/api/auth/logout', guard, async (req, res) => {
 // --- файлы ---
 app.get('/api/files', guard, async (req, res) => {
   try {
-    if (!me) await refreshMe();
+    if (!me) await withTimeout(refreshMe(), 9000, 'Telegram is unreachable — check the proxy');
     if (!me) return res.status(401).json({ error: 'not authorized' });
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
@@ -715,7 +747,8 @@ app.get('/api/files', guard, async (req, res) => {
     const nextOffset = offset + items.length < all.length ? offset + items.length : 0;
     res.json({ items, total: all.length, nextOffset });
   } catch (e) {
-    res.status(500).json({ error: errText(e) });
+    const msg = errText(e);
+    res.status(500).json({ error: msg, proxyHint: looksLikeNetworkError(msg) });
   }
 });
 

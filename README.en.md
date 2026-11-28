@@ -10,7 +10,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 
 | Platform | File | Status |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | stable **v1.3.2** |
+| Windows | `TGDrive-Easy.exe` | stable **v1.4.0** |
 | Linux | `TGDrive-Easy-x86_64.AppImage` | stable — tested on Kubuntu, Xubuntu and Ubuntu Classic |
 | macOS | `TGDrive-Easy-macos-unverified.zip` (contains `.app`) | **unverified** — there was no Mac to run it on |
 
@@ -54,7 +54,7 @@ chmod +x TGDrive-Easy-x86_64.AppImage
 ./TGDrive-Easy-x86_64.AppImage
 ```
 
-- Requires `libayatana-appindicator3` (usually present on Ubuntu; otherwise `sudo apt install libayatana-appindicator3-1`).
+- Requires `libayatana-appindicator3` and `gvfs-backends` (usually present on Ubuntu; the latter may be missing on Kubuntu).
 - If the AppImage does not start because of FUSE: `./TGDrive-Easy-x86_64.AppImage --appimage-extract-and-run`.
 - The drive is mounted through GVFS and shows up in the file manager; if mounting fails, the app keeps running and opens the console.
 - Data: `~/.local/share/TGDrive-Easy/data`.
@@ -68,16 +68,18 @@ chmod +x TGDrive-Easy-x86_64.AppImage
 
 Data and logs: `~/.local/share/TGDrive-Easy/data` (`app.log`, `tray.log`).
 
-## Your own API keys
+## API keys
 
-For long-term use, get your own credentials at [my.telegram.org](https://my.telegram.org) (API development tools) and put them into `data/.env`:
+The app uses the project's own API credentials, bundled into the build like the official clients do. The keys are injected at build time from protected variables and are not stored in the repository.
+
+You can override them with your own in `data/.env` if needed:
 
 ```
 TG_API_ID=your_id
 TG_API_HASH=your_hash
 ```
 
-With your own keys the app runs under your account and appears in Telegram's active sessions as `TGDrive-Easy` with the current version. Without them the public web-client credentials are used: it works, but is not recommended — Telegram does not approve that use for third-party apps.
+This is useful if you want a separate app identity.
 
 ## Settings
 

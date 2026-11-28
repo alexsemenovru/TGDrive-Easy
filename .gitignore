@@ -12,3 +12,5 @@ unix/assets/*.tar.gz
 unix/assets/app.zip
 unix/dist/
 
+
+app/api-config.json

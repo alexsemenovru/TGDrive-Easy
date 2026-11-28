@@ -10,7 +10,7 @@
 
 | Платформа | Файл | Статус |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | стабильная **v1.3.2** |
+| Windows | `TGDrive-Easy.exe` | стабильная **v1.4.0** |
 | Linux | `TGDrive-Easy-x86_64.AppImage` | стабильная — проверена на Kubuntu, Xubuntu и Ubuntu Classic |
 | macOS | `TGDrive-Easy-macos-unverified.zip` (внутри `.app`) | **непроверенная** — сборку не на чем было запустить |
 
@@ -54,7 +54,7 @@ chmod +x TGDrive-Easy-x86_64.AppImage
 ./TGDrive-Easy-x86_64.AppImage
 ```
 
-- Нужен `libayatana-appindicator3` (в Ubuntu обычно уже установлен; иначе `sudo apt install libayatana-appindicator3-1`).
+- Нужны `libayatana-appindicator3` и `gvfs-backends` (в Ubuntu обычно уже установлены; на Kubuntu второй может отсутствовать).
 - Если AppImage не запускается из-за FUSE: `./TGDrive-Easy-x86_64.AppImage --appimage-extract-and-run`.
 - Диск монтируется через GVFS и появляется в файловом менеджере; если не удалось, приложение продолжает работать и открывает консоль.
 - Данные: `~/.local/share/TGDrive-Easy/data`.
@@ -68,16 +68,18 @@ chmod +x TGDrive-Easy-x86_64.AppImage
 
 Данные и журналы: `~/.local/share/TGDrive-Easy/data` (`app.log`, `tray.log`).
 
-## Свои ключи API
+## Ключи API
 
-Для постоянной работы получите собственные ключи на [my.telegram.org](https://my.telegram.org) (API development tools) и добавьте их в `data/.env`:
+Приложение использует собственные ключи проекта — они вшиты в сборку, как у официальных клиентов. Ключи добавляются при сборке из защищённых переменных и в репозитории не хранятся.
+
+При необходимости их можно переопределить своими в `data/.env`:
 
 ```
 TG_API_ID=ваш_id
 TG_API_HASH=ваш_hash
 ```
 
-С ними приложение работает от вашего имени, а в «Активных сессиях» Telegram отображается как `TGDrive-Easy` с текущей версией. Без своих ключей используются публичные ключи веб-клиента — это работает, но не рекомендуется: Telegram не одобряет такое использование сторонними приложениями.
+Это полезно, если вы хотите отдельную учётную запись приложения.
 
 ## Настройки
 

@@ -28,7 +28,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.3.3"
+	buildVersion = "1.4.0"
 	port         = 4100
 )
 

@@ -35,8 +35,17 @@ async function api(url, options = {}) {
   const text = await res.text();
   let data = {};
   try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { error: text }; }
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.proxyHint = !!data.proxyHint;
+    throw err;
+  }
   return data;
+}
+
+function loginError(e) {
+  setStatus($('loginStatus'), e.message, true);
+  $('proxyFromError').hidden = !e.proxyHint;
 }
 
 function setStatus(node, text, isError = false) {
@@ -153,7 +162,7 @@ $('mountBtn').addEventListener('click', async () => {
   setStatus($('settingsStatus'), t('status.mounting'));
   try {
     const out = await api('/api/mount', { method: 'POST' });
-    setStatus($('settingsStatus'), out.mounted ? t('status.mountOk') : t('status.mountFailed'));
+    setStatus($('settingsStatus'), out.mounted ? t('status.mountOk') : (out.error || t('status.mountFailed')), !out.mounted);
     await loadSettings();
   } catch (e) {
     setStatus($('settingsStatus'), e.message, true);
@@ -228,6 +237,11 @@ $('proxyPaste').addEventListener('click', async () => {
   } else {
     setStatus($('settingsStatus'), t('status.linkParsed'));
   }
+});
+
+$('proxyFromError').addEventListener('click', async () => {
+  await loadSettings();
+  showView('settings');
 });
 
 $('settingsBtn').addEventListener('click', async () => {
@@ -305,10 +319,11 @@ $('sendCodeBtn').addEventListener('click', async () => {
     const out = await api('/api/auth/send-code', { method: 'POST', body: JSON.stringify({ phone }) });
     showStep('stepCode');
     setStatus($('loginStatus'), '');
+    $('proxyFromError').hidden = true;
     $('codeHint').textContent = out.isCodeViaApp ? t('login.codeViaApp') : t('login.codeViaSms');
     $('code').focus();
   } catch (e) {
-    setStatus($('loginStatus'), e.message, true);
+    loginError(e);
   } finally {
     btn.disabled = false;
   }
@@ -339,7 +354,7 @@ $('signInBtn').addEventListener('click', async () => {
     const out = await api('/api/auth/sign-in', { method: 'POST', body: JSON.stringify({ code }) });
     await finishLogin(out);
   } catch (e) {
-    setStatus($('loginStatus'), e.message, true);
+    loginError(e);
   } finally {
     btn.disabled = false;
   }
@@ -355,7 +370,7 @@ $('passwordBtn').addEventListener('click', async () => {
     await api('/api/auth/password', { method: 'POST', body: JSON.stringify({ password }) });
     await enterApp();
   } catch (e) {
-    setStatus($('loginStatus'), e.message, true);
+    loginError(e);
   } finally {
     btn.disabled = false;
   }
@@ -381,7 +396,7 @@ async function enterApp() {
   $('userBox').hidden = false;
   $('userName').textContent = st.me.name || st.me.username || 'account';
   showView('files');
-  await loadFiles(true);
+  await loadFiles(true, true);
 }
 
 function renderFiles() {
@@ -519,6 +534,7 @@ $('uploadInput').addEventListener('change', async (e) => {
     else await startLogin();
   } catch (e) {
     showView('login');
-    setStatus($('loginStatus'), t('status.serverUnavailable', { error: e.message }), true);
+    e.message = t('status.serverUnavailable', { error: e.message });
+    loginError(e);
   }
 })();

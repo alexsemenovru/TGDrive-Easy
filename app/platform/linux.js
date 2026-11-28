@@ -32,6 +32,9 @@ module.exports = {
     const res = await run('gio', ['mount', url], 45000);
     if (res.ok) return { ok: true };
     const detail = (res.stderr || '').trim().split('\n').pop() || 'gio mount failed';
+    if (/doesn.t implement mount|not supported|backend|not available/i.test(detail)) {
+      return { ok: false, error: detail + ' — install the GVFS DAV backend: sudo apt install gvfs-backends' };
+    }
     return { ok: false, error: detail };
   },
 

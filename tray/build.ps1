@@ -25,7 +25,7 @@ Write-Host '2/5 staging app files'
 if (Test-Path $Stage) { Remove-Item $Stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 Copy-Item (Join-Path $AppSrc 'server.js'), (Join-Path $AppSrc 'dav.js'),
-          (Join-Path $AppSrc 'store.js'), (Join-Path $AppSrc 'session.js'), (Join-Path $AppSrc 'package.json') $Stage
+          (Join-Path $AppSrc 'store.js'), (Join-Path $AppSrc 'session.js'), (Join-Path $AppSrc 'api-config.json'), (Join-Path $AppSrc 'package.json') $Stage
 Copy-Item (Join-Path $AppSrc 'platform') $Stage -Recurse
 Copy-Item (Join-Path $AppSrc 'public') $Stage -Recurse
 Push-Location $AppSrc
