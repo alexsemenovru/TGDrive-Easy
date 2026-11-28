@@ -616,8 +616,13 @@ app.post('/api/unmount', guard, (req, res) => {
 });
 
 // --- управление из трея ---
+app.post('/api/app/exit', controlGuard, (req, res) => {
+  res.json({ ok: true });
+  setTimeout(() => shutdown('tray exit'), 200);
+});
+
 app.get('/api/app/status', controlGuard, (req, res) => {
-  res.json({ mounted, autoMount: settings.autoMount, mode: MOUNT_MODE });
+  res.json({ mounted, autoMount: settings.autoMount, mode: MOUNT_MODE, drive: DRIVE });
 });
 
 app.post('/api/app/mount', controlGuard, async (req, res) => {

@@ -25,7 +25,7 @@ var assets embed.FS
 
 const (
 	appName      = "TGDrive-Easy"
-	buildVersion = "1.3.1"
+	buildVersion = "1.3.2"
 	port         = 4100
 	driveLetter  = "Z:"
 
@@ -370,10 +370,26 @@ func removeTray() {
 
 func cleanup() {
 	removeTray()
-	if nodeCmd != nil && nodeCmd.Process != nil {
-		nodeCmd.Process.Kill()
+	drive := ""
+	if st, err := control("GET", "/api/app/status"); err == nil {
+		if v, ok := st["drive"].(string); ok {
+			drive = v
+		}
 	}
-	runHidden("net.exe", "use", driveLetter, "/delete", "/y")
+	control("POST", "/api/app/exit")
+	if nodeCmd != nil && nodeCmd.Process != nil {
+		done := make(chan struct{})
+		go func() { nodeCmd.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(6 * time.Second):
+			nodeCmd.Process.Kill()
+		}
+	}
+	if drive == "" {
+		drive = driveLetter
+	}
+	runHidden("net.exe", "use", drive, "/delete", "/y")
 }
 
 	// request to the local server on behalf of the tray

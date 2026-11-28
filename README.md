@@ -10,7 +10,7 @@
 
 | Платформа | Файл | Статус |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | стабильная **v1.3.1** |
+| Windows | `TGDrive-Easy.exe` | стабильная **v1.3.2** |
 | Linux | `TGDrive-Easy-x86_64.AppImage` | стабильная — проверена на Kubuntu, Xubuntu и Ubuntu Classic |
 | macOS | `TGDrive-Easy-macos-unverified.zip` (внутри `.app`) | **непроверенная** — сборку не на чем было запустить |
 

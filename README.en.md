@@ -10,7 +10,7 @@ All files are in [Releases](https://github.com/alexsemenovru/TGDrive-Easy/releas
 
 | Platform | File | Status |
 |---|---|---|
-| Windows | `TGDrive-Easy.exe` | stable **v1.3.1** |
+| Windows | `TGDrive-Easy.exe` | stable **v1.3.2** |
 | Linux | `TGDrive-Easy-x86_64.AppImage` | stable — tested on Kubuntu, Xubuntu and Ubuntu Classic |
 | macOS | `TGDrive-Easy-macos-unverified.zip` (contains `.app`) | **unverified** — there was no Mac to run it on |
 

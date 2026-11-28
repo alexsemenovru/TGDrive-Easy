@@ -44,7 +44,7 @@ module.exports = {
     const marks = [];
     for (const line of String(res.stdout || '').split(/\r?\n/)) {
       const m = line.match(/^([A-Z]):\s+.*localhost:\d+\/dav/i);
-      if (m && ['Z', 'O', 'V'].includes(m[1])) marks.push(m[1] + ':');
+      if (m) marks.push(m[1] + ':');
     }
     for (const drive of marks) {
       await run('net.exe', ['use', drive, '/delete', '/y'], 15000);
